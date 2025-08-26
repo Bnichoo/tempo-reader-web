@@ -1,0 +1,23 @@
+diff --git a/src/components/Reader.tsx b/src/components/Reader.tsx
+--- a/src/components/Reader.tsx
++++ b/src/components/Reader.tsx
+@@ -150,7 +150,11 @@
+     return Math.max(16, Math.round(size * pxPerTok));
+   };
+ 
+-  useEffect(() => {
++  // Duplicate scrollBy effect (conflicts with smoothScrollTokenIntoViewByIndex).
++  // We disable it by returning immediately; the smooth scroller handles focus keeping.
++  useEffect(() => {
++    return;
++    /* disabled:
+     const root = rootRef.current;
+     if (!root) return;
+ 
+@@ -176,7 +180,7 @@
+     } else if (eb.top < cb.top + margin) {
+       const delta = eb.top - (cb.top + margin);
+       container.scrollBy({ top: delta, behavior: "smooth" });
+-    }
++    } */
+   }, [focusStart, focusLength, visible]);
