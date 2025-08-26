@@ -560,6 +560,21 @@ export default function App() {
     if (saved != null) return saved === "1"
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   })
+  
+// Listen to events sent by Reader (click to toggle, selection to pause)
+useEffect(() => {
+  const onToggle = () => setPlaying(p => !p);
+  const onPause  = () => setPlaying(false);
+
+  window.addEventListener("tempo:toggle", onToggle);
+  window.addEventListener("tempo:pause",  onPause);
+
+  return () => {
+    window.removeEventListener("tempo:toggle", onToggle);
+    window.removeEventListener("tempo:pause",  onPause);
+  };
+}, []); // intentional: stable handlers
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light")
     localStorage.setItem("theme:dark", dark ? "1" : "0")
