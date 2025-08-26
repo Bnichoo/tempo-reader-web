@@ -1,0 +1,46 @@
+*** a/src/App.tsx
+--- b/src/App.tsx
+@@
+-  <main className="max-w-5xl mx-auto p-4 h:[calc(100vh-64px)] md:h:[calc(100vh-64px)]">
++  <main className="max-w-5xl mx-auto p-4 h-[calc(100vh-64px)] md:h-[calc(100vh-64px)]">
+@@
+-    <div ref={containerRef} className="w-full h-full flex flex-col">
++    <div ref={containerRef} className="w-full h-full flex flex-col min-h-0">
+@@
+-      <section
+-        className="reader-scroll relative rounded-2xl shadow-sm bg-white p-6 border border-sepia-200 overflow-y-auto scroll-smooth"
++      <section
++        className="reader-scroll relative flex-1 min-h-0 rounded-2xl shadow-sm bg-white p-6 border border-sepia-200 overflow-y-auto scroll-smooth"
+         style={readerStyle}
+       >
+         <Reader
+           tokens={tokens}
+           focusStart={focusRange.start}
+*** a/src/components/Reader.tsx
+--- b/src/components/Reader.tsx
+@@
+ export function Reader(props: Props) {
++  // Smoothly keep focused token inside the .reader-scroll panel
++  function smoothScrollTokenIntoViewByIndex(ti: number) {
++    const el = document.querySelector<HTMLElement>(`.token[data-ti="${ti}"]`);
++    if (!el) return;
++    const sc =
++      (el.closest(".reader-scroll") as HTMLElement) ||
++      (el.parentElement as HTMLElement);
++    if (!sc) return;
++    const cr = sc.getBoundingClientRect();
++    const tr = el.getBoundingClientRect();
++    const margin = 40; // px breathing room
++    if (tr.bottom > cr.bottom - margin) {
++      const delta = tr.bottom - (cr.bottom - margin);
++      sc.scrollTo({ top: sc.scrollTop + delta, behavior: "smooth" });
++    } else if (tr.top < cr.top + margin) {
++      const delta = (cr.top + margin) - tr.top;
++      sc.scrollTo({ top: sc.scrollTop - delta, behavior: "smooth" });
++    }
++  }
++
++  // Keep focus visible when focusStart changes
++  useEffect(() => {
++    smoothScrollTokenIntoViewByIndex(props.focusStart);
++  }, [props.focusStart]);
