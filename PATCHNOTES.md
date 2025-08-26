@@ -12,6 +12,7 @@
   - Selection pauses playback; click-to-toggle play/pause
   - Focus/dim scale + blur; first-letter tint; sentence aid
   - Context menu: Go to text / Select sentence / Clear sentence / Add clip
+  - Clicking text now pauses only when playing (no jump); clicking while paused still jumps to clicked word.
 - Controls
   - Drawer with sliders: tempo, words shown, spacing, text size, scales, blur
   - Import/Export settings; auto-backup on close

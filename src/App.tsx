@@ -132,6 +132,33 @@ function pruneClips(list: Clip[]): Clip[] {
   return [...pinned, ...rest].slice(0, MAX_CLIPS)
 }
 
+/** NEW: migrate old/raw clip objects to full shape */
+function migrateClips(list: any[]): Clip[] {
+  const arr = Array.isArray(list) ? list : []
+  const nowIso = new Date().toISOString()
+  return arr.map((c: any, idx: number) => {
+    const id: string =
+      typeof c?.id === "string" && c.id
+        ? c.id
+        : (crypto?.randomUUID ? crypto.randomUUID() : `${nowIso}-${idx}`)
+
+    const start  = Math.max(0, Number(c?.start)  || 0)
+    const length = Math.max(1, Number(c?.length) || 1)
+    const snippet = typeof c?.snippet === "string" ? c.snippet : ""
+
+    const pinned = !!c?.pinned
+    const createdUtc =
+      typeof c?.createdUtc === "string" && c.createdUtc ? c.createdUtc : nowIso
+
+    const noteHtml =
+      typeof c?.noteHtml === "string" && c.noteHtml
+        ? sanitizeHTML(c.noteHtml)
+        : undefined
+
+    return { id, start, length, snippet, noteHtml, pinned, createdUtc }
+  })
+}
+
 const SAMPLE_TEXT = `Reading isn’t one thing; it is a braid of habits woven together. As eyes move, the mind predicts, discards, and stitches meaning on the fly. Most of this happens below awareness, but our experience of a page changes dramatically when attention is guided.
 
 Focus reading makes that guidance explicit. It gives a gentle nudge to where your attention should settle next, then steps out of the way. The rhythm matters: too fast and comprehension collapses; too slow and your mind wanders off the line.
@@ -561,19 +588,19 @@ export default function App() {
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
   })
   
-// Listen to events sent by Reader (click to toggle, selection to pause)
-useEffect(() => {
-  const onToggle = () => setPlaying(p => !p);
-  const onPause  = () => setPlaying(false);
+  // Listen to events sent by Reader (click to toggle, selection to pause)
+  useEffect(() => {
+    const onToggle = () => setPlaying(p => !p);
+    const onPause  = () => setPlaying(false);
 
-  window.addEventListener("tempo:toggle", onToggle);
-  window.addEventListener("tempo:pause",  onPause);
+    window.addEventListener("tempo:toggle", onToggle);
+    window.addEventListener("tempo:pause",  onPause);
 
-  return () => {
-    window.removeEventListener("tempo:toggle", onToggle);
-    window.removeEventListener("tempo:pause",  onPause);
-  };
-}, []); // intentional: stable handlers
+    return () => {
+      window.removeEventListener("tempo:toggle", onToggle);
+      window.removeEventListener("tempo:pause",  onPause);
+    };
+  }, []); // intentional: stable handlers
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light")
@@ -625,6 +652,7 @@ useEffect(() => {
   useEffect(() => { setWIndex(0) }, [tokens])
   useEffect(() => { if (aidAuto && tokens.length) setAidRange(sentenceRangeAt(tokens, tokenIndexFromWord(wIndex))) }, [aidAuto, tokens, wIndex])
 
+  /* Load persisted */
   useEffect(() => {
     const s = (loadSettings() || {})
     const c = { ...s }
@@ -640,7 +668,7 @@ useEffect(() => {
     sc(c,"drawerOpen",(v)=>setDrawerOpen(!!v))
 
     const raw = loadClips()
-    if (raw?.length) setClips(pruneClips(raw.map(c => ({ ...c, noteHtml: c.noteHtml ? sanitizeHTML(c.noteHtml) : undefined }))))
+    if (raw?.length) setClips(pruneClips(migrateClips(raw)))
   }, [])
 
   useEffect(() => {
@@ -816,7 +844,7 @@ useEffect(() => {
         if (s.dark != null) setDark(!!s.dark)
         if (s.drawerOpen != null) setDrawerOpen(!!s.drawerOpen)
       }
-      if (data.clips) setClips(pruneClips(data.clips.map(c => ({ ...c, noteHtml: c.noteHtml ? sanitizeHTML(c.noteHtml) : undefined }))))
+      if (data.clips) setClips(pruneClips(migrateClips(data.clips)))
 
       alert("Import complete.")
     } catch (e: any) {
@@ -1015,6 +1043,7 @@ useEffect(() => {
                 focusLength={focusRange.length}
                 hoverRange={hoverRange}
                 aidRange={aidRange}
+				playing={playing}
                 onJump={(tokenIdx)=> setWIndex(wordIndexFromToken(tokenIdx))}
                 onAddClip={(range)=>{ setPendingRange(range); setEditingClipId(null); setNoteOpen(true) }}
                 onAidRangeChange={setAidRange}
@@ -1063,7 +1092,7 @@ useEffect(() => {
                           <button onClick={()=>setWIndex(wordIndexFromToken(c.start))}>Go to text</button>
                           <button onClick={()=>beginEditRange(c.id)}>Edit range</button>
                           <button onClick={()=>{ setEditingClipId(c.id); setNoteOpen(true) }}>
-                            {c.noteHtml ? "Edit" : "Add note"}
+                            {c.noteHtml ? "Edit note" : "Add note"}
                           </button>
                           <button onClick={()=>deleteClip(c.id)}>Delete</button>
                         </div>

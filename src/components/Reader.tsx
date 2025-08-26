@@ -7,6 +7,7 @@ type Props = {
   focusLength: number;
   hoverRange: RangeT | null;
   aidRange: RangeT | null;
+  playing: boolean;
   onJump: (tokenIdx: number) => void;
   onAddClip: (range: RangeT) => void;
   onAidRangeChange: (range: RangeT | null) => void;
@@ -35,6 +36,7 @@ export const Reader: React.FC<Props> = ({
   focusLength,
   hoverRange,
   aidRange,
+  playing,
   onJump,
   onAddClip,
   onAidRangeChange,
@@ -336,7 +338,13 @@ export const Reader: React.FC<Props> = ({
       className="reader-container"
       onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
-      onClickCapture={onClickToggle}
+      onClickCapture={(e) => {
+		// If we’re playing, a click pauses and stops the click from bubbling to tokens (so no jump).
+		if (playing) {
+			e.stopPropagation();
+			window.dispatchEvent(new CustomEvent("tempo:pause"));
+		}
+	  }}
     >
       {blocks.map((b) => {
         const isVisible = visible.has(b.idx);

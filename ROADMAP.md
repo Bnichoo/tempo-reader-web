@@ -24,20 +24,24 @@
 
 ## 🚧 In progress / queued
 - Clip management MVP
-  - [ ] Edit clip range (reselect → **Update clip**)
-  - [ ] Reorder clips (drag & drop)
-  - [ ] Pin/Unpin clips (pinned float to top)
-  - [ ] Search/filter clips by snippet or note text
+  - [x] Edit clip range (reselect → **Update clip**)
+  - [x] Search/filter clips by snippet or note text
+  - [x] Always show **Delete** + **Add/Edit note** (empty notes deletable)
+  - [ ] Reorder clips via **drag & drop**
+  - [x] Pin/Unpin clips (basic; pinned surface at top)
 - Note editor polish
-  - [ ] Undo/Redo (keyboard + buttons)
-  - [ ] Auto-save draft while editing
-  - [ ] Link button with URL validation (keep; lists manual)
+  - [x] Paste sanitize (plain-text + safe HTML)
+  - [x] Undo/Redo (buttons + shortcuts)
+  - [x] Link button with URL validation
+  - [ ] Draft autosave resume across restarts (persist per-clip)
 - Reader UX polish
+  - [x] Selection pauses playback
+  - [x] Click-to-pause finalized (click pauses when playing; click jumps when paused)
   - [ ] Setting to disable click-to-toggle
   - [ ] Fine-tune follow thresholds for very large fonts
 - Performance & robustness
-  - [ ] Workerized tokenization
-  - [ ] Error boundary + “recover session” banner
+  - [ ] Workerized tokenization (keep virtualization)
+  - [ ] Error boundary + “Recover session” banner
 - Packaging
   - [ ] PWA (manifest, SW, offline cache, install prompt)
   - [ ] Desktop (Tauri) / Android (Capacitor) after PWA is solid
