@@ -1,0 +1,185 @@
+*** a/src/components/Reader.tsx
+--- b/src/components/Reader.tsx
+@@
+ export const Reader: React.FC<Props> = ({
+   tokens,
+   focusStart,
+   focusLength,
+   hoverRange,
+   aidRange,
+   onJump,
+   onAddClip,
+   onAidRangeChange,
+   onSelectionChange,
+ }) => {
+   const rootRef = useRef<HTMLDivElement>(null);
+   const scrollRef = useRef<HTMLDivElement>(null);
+   const blocks = useMemo(() => {
+     const arr: { idx: number; start: number; end: number; key: string }[] = []
+     for (let i = 0, bi = 0; i < tokens.length; i += BLOCK_SIZE, bi++) {
+       arr.push({ idx: bi, start: i, end: Math.min(tokens.length - 1, i + BLOCK_SIZE - 1), key: `b-${bi}` })
+     }
+     return arr
+   }, [tokens]);
+ 
+   const [visible, setVisible] = useState<Set<number>>(() => new Set());
+   const [heights, setHeights] = useState<Map<number, number>>(() => new Map());
+   const avgRef = useRef<{ tokens: number; px: number }>({ tokens: 1, px: 24 });
+ 
+   const wrappersRef = useRef<Map<number, HTMLDivElement>>(new Map());
+   const contentRef  = useRef<Map<number, HTMLDivElement>>(new Map());
+   const ioRef = useRef<IntersectionObserver | null>(null);
++
++  // --- virtual block height estimator (component scope, not inside effects) ---
++  const estimateHeight = (bi: number) => {
++    const known = heights.get(bi);
++    if (known) return known;
++    const size = blocks[bi] ? (blocks[bi].end - blocks[bi].start + 1) : BLOCK_SIZE;
++    const pxPerTok = avgRef.current.px / Math.max(1, avgRef.current.tokens);
++    return Math.max(16, Math.round(size * pxPerTok));
++  };
+@@
+-  useEffect(() => {
+-    const root = rootRef.current;
+-    if (!root) return;
+-
+-    const onUp = () => {
+-      const sel = document.getSelection();
+-      if (!sel || sel.rangeCount === 0) { onSelectionChange(null); return; }
+-      const range = sel.getRangeAt(0);
+-      if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+-        onSelectionChange(null); return;
+-      }
+-      const startSpan = (range.startContainer.nodeType === 3 ? (range.startContainer.parentElement) : (range.startContainer as Element)) as HTMLElement | null;
+-      const endSpan   = (range.endContainer.nodeType === 3 ? (range.endContainer.parentElement) : (range.endContainer as Element)) as HTMLElement | null;
+-
+-      function findTok(el: HTMLElement | null): number | null {
+-        let cur: HTMLElement | null = el;
+-        while (cur && cur !== root) {
+-          if (cur.dataset && cur.dataset.ti) {
+-            const ti = Number(cur.dataset.ti);
+-            if (Number.isFinite(ti)) return ti;
+-          }
+-          cur = cur.parentElement;
+-        }
+-        return null;
+-      }
+-
+-      const a = findTok(startSpan);
+-      const b = findTok(endSpan);
+-      if (a == null || b == null) { onSelectionChange(null); return; }
+-
+-      const s = Math.min(a, b);
+-      const e = Math.max(a, b);
+-      onSelectionChange({ start: s, length: e - s + 1 });
+-    };
+-
+-  useEffect(() => {
+-  smoothScrollTokenIntoViewByIndex(focusStart);
+-}, [focusStart]);
+-
+-
+-  const estimateHeight = (bi: number) => {
+-    const known = heights.get(bi);
+-    if (known) return known;
+-    const size = blocks[bi] ? (blocks[bi].end - blocks[bi].start + 1) : BLOCK_SIZE;
+-    const pxPerTok = avgRef.current.px / Math.max(1, avgRef.current.tokens);
+-    return Math.max(16, Math.round(size * pxPerTok));
+-  };
+-
+-  useEffect(() => {
+-    const root = rootRef.current;
+-    if (!root) return;
+-
+-    const container =
+-      (root.closest(".reader-scroll") as HTMLElement) ||
+-      (root.parentElement as HTMLElement);
+-
+-    if (!container) return;
+-    const focusEl = root.querySelector(`.tok[data-ti="${focusStart}"]`) as HTMLElement | null;
+-    if (!focusEl) return;
+-
+-    const cb = container.getBoundingClientRect();
+-    const eb = focusEl.getBoundingClientRect();
+-    const margin = Math.min(120, cb.height * 0.25);
+-
+-    if (eb.bottom > cb.bottom - margin) {
+-      const delta = eb.bottom - (cb.bottom - margin);
+-      container.scrollBy({ top: delta, behavior: "smooth" });
+-    } else if (eb.top < cb.top + margin) {
+-      const delta = eb.top - (cb.top + margin);
+-      container.scrollBy({ top: delta, behavior: "smooth" });
+-    }
+-  }, [focusStart, focusLength, visible]);
+-
+-    root.addEventListener("mouseup", onUp);
+-    return () => { root.removeEventListener("mouseup", onUp); }
+-  }, [onSelectionChange]);
++  // --- selection change effect (adds mouseup listener on the reader root) ---
++  useEffect(() => {
++    const root = rootRef.current;
++    if (!root) return;
++
++    const onUp = () => {
++      const sel = document.getSelection();
++      if (!sel || sel.rangeCount === 0) { onSelectionChange(null); return; }
++      const range = sel.getRangeAt(0);
++      if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
++        onSelectionChange(null); return;
++      }
++      const startSpan = (range.startContainer.nodeType === 3 ? (range.startContainer.parentElement) : (range.startContainer as Element)) as HTMLElement | null;
++      const endSpan   = (range.endContainer.nodeType === 3 ? (range.endContainer.parentElement) : (range.endContainer as Element)) as HTMLElement | null;
++
++      function findTok(el: HTMLElement | null): number | null {
++        let cur: HTMLElement | null = el;
++        while (cur && cur !== root) {
++          if (cur.dataset && cur.dataset.ti) {
++            const ti = Number(cur.dataset.ti);
++            if (Number.isFinite(ti)) return ti;
++          }
++          cur = cur.parentElement;
++        }
++        return null;
++      }
++
++      const a = findTok(startSpan);
++      const b = findTok(endSpan);
++      if (a == null || b == null) { onSelectionChange(null); return; }
++
++      const s = Math.min(a, b);
++      const e = Math.max(a, b);
++      onSelectionChange({ start: s, length: e - s + 1 });
++    };
++
++    root.addEventListener("mouseup", onUp);
++    return () => { root.removeEventListener("mouseup", onUp); };
++  }, [onSelectionChange]);
++
++  // --- keep focus token in view (no nested hooks) ---
++  useEffect(() => {
++    const root = rootRef.current;
++    if (!root) return;
++    const container =
++      (root.closest(".reader-scroll") as HTMLElement) ||
++      (root.parentElement as HTMLElement);
++    if (!container) return;
++    const focusEl = root.querySelector(`.tok[data-ti="${focusStart}"]`) as HTMLElement | null;
++    if (!focusEl) return;
++
++    const cb = container.getBoundingClientRect();
++    const eb = focusEl.getBoundingClientRect();
++    const margin = Math.min(120, cb.height * 0.25);
++    if (eb.bottom > cb.bottom - margin) {
++      const delta = eb.bottom - (cb.bottom - margin);
++      container.scrollBy({ top: delta, behavior: "smooth" });
++    } else if (eb.top < cb.top + margin) {
++      const delta = eb.top - (cb.top + margin);
++      container.scrollBy({ top: delta, behavior: "smooth" });
++    }
++  }, [focusStart, focusLength, visible]);
+@@
+       {blocks.map((b) => {
+         const isVisible = visible.has(b.idx);
+         const style: React.CSSProperties = {
+           minHeight: isVisible ? undefined : estimateHeight(b.idx),
+         };

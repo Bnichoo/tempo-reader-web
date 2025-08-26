@@ -13,6 +13,7 @@ type Props = {
   onSelectionChange: (range: RangeT | null) => void;
 };
 
+// Find sentence range for a token index
 function sentenceRangeAt(tokens: string[], i: number): RangeT {
   const isBoundary = (s: string) => /[.!?]/.test(s);
   let s = 0;
@@ -41,38 +42,44 @@ export const Reader: React.FC<Props> = ({
   onSelectionChange,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ---- block list -----------------------------------------------------------
   const blocks = useMemo(() => {
-    const arr: { idx: number; start: number; end: number; key: string }[] = []
+    const arr: { idx: number; start: number; end: number; key: string }[] = [];
     for (let i = 0, bi = 0; i < tokens.length; i += BLOCK_SIZE, bi++) {
-      arr.push({ idx: bi, start: i, end: Math.min(tokens.length - 1, i + BLOCK_SIZE - 1), key: `b-${bi}` })
+      arr.push({ idx: bi, start: i, end: Math.min(tokens.length - 1, i + BLOCK_SIZE - 1), key: `b-${bi}` });
     }
-    return arr
+    return arr;
   }, [tokens]);
 
+  // ---- virtualization state -------------------------------------------------
   const [visible, setVisible] = useState<Set<number>>(() => new Set());
   const [heights, setHeights] = useState<Map<number, number>>(() => new Map());
   const avgRef = useRef<{ tokens: number; px: number }>({ tokens: 1, px: 24 });
 
   const wrappersRef = useRef<Map<number, HTMLDivElement>>(new Map());
-  const contentRef  = useRef<Map<number, HTMLDivElement>>(new Map());
   const ioRef = useRef<IntersectionObserver | null>(null);
 
-useEffect(() => {
-  smoothScrollTokenIntoViewByIndex(focusStart);
-}, [focusStart]);
+  // Height estimator (component scope)
+  const estimateHeight = (bi: number) => {
+    const known = heights.get(bi);
+    if (known) return known;
+    const size = blocks[bi] ? (blocks[bi].end - blocks[bi].start + 1) : BLOCK_SIZE;
+    const pxPerTok = avgRef.current.px / Math.max(1, avgRef.current.tokens);
+    return Math.max(16, Math.round(size * pxPerTok));
+  };
 
-useEffect(() => {
+  // Watch wrappers
+  useEffect(() => {
     if (ioRef.current) ioRef.current.disconnect();
     const io = new IntersectionObserver(
       (entries) => {
-        setVisible((prev) => {
+        setVisible(prev => {
           const next = new Set(prev);
           for (const e of entries) {
             const bi = Number((e.target as HTMLElement).dataset.block);
             if (!Number.isFinite(bi)) continue;
-            if (e.isIntersecting) next.add(bi);
-            else next.delete(bi);
+            if (e.isIntersecting) next.add(bi); else next.delete(bi);
           }
           return next;
         });
@@ -81,19 +88,12 @@ useEffect(() => {
     );
     ioRef.current = io;
 
-    wrappersRef.current.forEach((el) => io.observe(el));
+    wrappersRef.current.forEach(el => io.observe(el));
     return () => io.disconnect();
   }, [blocks.length]);
 
-  const setWrapper = (blockIdx: number, el: HTMLDivElement | null) => {
-    const map = wrappersRef.current;
-    const prev = map.get(blockIdx);
-    if (prev && ioRef.current) ioRef.current.unobserve(prev);
-    if (el) { map.set(blockIdx, el); if (ioRef.current) ioRef.current.observe(el); }
-    else { map.delete(blockIdx); }
-  };
-
- useEffect(() => {
+  // Measure visible block heights (improves estimator)
+  useEffect(() => {
     const m = new Map(heights);
     let changed = false;
     visible.forEach((bi) => {
@@ -112,75 +112,7 @@ useEffect(() => {
     if (changed) setHeights(m);
   }, [visible, heights, blocks]);
 
-  const focusEnd = focusStart + Math.max(0, focusLength - 1);
-  const aidStart = aidRange ? aidRange.start : -1;
-  const aidEnd   = aidRange ? aidRange.start + aidRange.length - 1 : -2;
-  const hoverStart = hoverRange ? hoverRange.start : -1;
-  const hoverEnd   = hoverRange ? hoverRange.start + hoverRange.length - 1 : -2;
-
- useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const onUp = () => {
-      const sel = document.getSelection();
-      if (!sel || sel.rangeCount === 0) { onSelectionChange(null); return; }
-      const range = sel.getRangeAt(0);
-      if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
-        onSelectionChange(null); return;
-      }
-      const startSpan = (range.startContainer.nodeType === 3 ? (range.startContainer.parentElement) : (range.startContainer as Element)) as HTMLElement | null;
-      const endSpan   = (range.endContainer.nodeType === 3 ? (range.endContainer.parentElement) : (range.endContainer as Element)) as HTMLElement | null;
-
-      function findTok(el: HTMLElement | null): number | null {
-        let cur: HTMLElement | null = el;
-        while (cur && cur !== root) {
-          if (cur.dataset && cur.dataset.ti) {
-            const ti = Number(cur.dataset.ti);
-            if (Number.isFinite(ti)) return ti;
-          }
-          cur = cur.parentElement;
-        }
-        return null;
-      }
-
-      const a = findTok(startSpan);
-      const b = findTok(endSpan);
-      if (a == null || b == null) { onSelectionChange(null); return; }
-
-      const s = Math.min(a, b);
-      const e = Math.max(a, b);
-      onSelectionChange({ start: s, length: e - s + 1 });
-    };
-
-
-  const estimateHeight = (bi: number) => {
-    const known = heights.get(bi);
-    if (known) return known;
-    const size = blocks[bi] ? (blocks[bi].end - blocks[bi].start + 1) : BLOCK_SIZE;
-    const pxPerTok = avgRef.current.px / Math.max(1, avgRef.current.tokens);
-    return Math.max(16, Math.round(size * pxPerTok));
-  };
-
- useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-}, [focusStart, focusLength, visible]);
-
-    root.addEventListener("mouseup", onUp);
-    return () => { root.removeEventListener("mouseup", onUp); }
-  }, [onSelectionChange]);
-
-  const onDoubleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const el = (e.target as HTMLElement);
-    const tiAttr = el?.closest(".tok")?.getAttribute("data-ti");
-    if (!tiAttr) return;
-    const ti = Number(tiAttr);
-    if (!Number.isFinite(ti)) return;
-    onAidRangeChange(sentenceRangeAt(tokens, ti));
-  };
-
+  // ---- selection and menu ---------------------------------------------------
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; ti: number | null }>({
     open: false, x: 0, y: 0, ti: null
   });
@@ -205,8 +137,8 @@ useEffect(() => {
         function findTok(el: HTMLElement | null): number | null {
           let cur: HTMLElement | null = el;
           while (cur && cur !== rootRef.current) {
-            if (cur.dataset && cur.dataset.ti) {
-              const ti = Number(cur.dataset.ti);
+            if ((cur as any).dataset && (cur as any).dataset.ti) {
+              const ti = Number((cur as any).dataset.ti);
               if (Number.isFinite(ti)) return ti;
             }
             cur = cur.parentElement;
@@ -229,79 +161,174 @@ useEffect(() => {
     closeMenu();
   };
 
-  const goHere = () => {
-    if (menu.ti != null) onJump(menu.ti);
-    closeMenu();
-  };
-  const setSentenceHere = () => {
-    const ti = menu.ti ?? focusStart;
-    onAidRangeChange(sentenceRangeAt(tokens, ti));
-    closeMenu();
-  };
+  const goHere = () => { if (menu.ti != null) onJump(menu.ti); closeMenu(); };
+  const setSentenceHere = () => { const ti = menu.ti ?? focusStart; onAidRangeChange(sentenceRangeAt(tokens, ti)); closeMenu(); };
   const clearSentence = () => { onAidRangeChange(null); closeMenu(); };
 
+  // ---- suspend auto-scroll while selecting & pause on selection ------------
+  const [isPointerSelecting, setIsPointerSelecting] = useState(false);
+  const [hasSelection, setHasSelection] = useState(false);
+
+  // pointer start/end inside reader
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const down = (e: PointerEvent) => {
+      if (!root.contains(e.target as Node)) return;
+      setIsPointerSelecting(true);
+      // pause request
+      window.dispatchEvent(new CustomEvent("tempo:pause"));
+    };
+    const up = () => setIsPointerSelecting(false);
+
+    root.addEventListener("pointerdown", down);
+    window.addEventListener("pointerup", up);
+    return () => {
+      root.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointerup", up);
+    };
+  }, []);
+
+  // track real selection state (inside reader only)
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const onSel = () => {
+      const sel = document.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setHasSelection(false);
+        onSelectionChange(null);
+        return;
+      }
+      const r = sel.getRangeAt(0);
+      const inside = root.contains(r.startContainer) && root.contains(r.endContainer);
+      setHasSelection(inside);
+      // also notify App with token range (existing behavior)
+      if (inside) {
+        const startSpan = (r.startContainer.nodeType === 3 ? (r.startContainer.parentElement) : (r.startContainer as Element)) as HTMLElement | null;
+        const endSpan   = (r.endContainer.nodeType === 3 ? (r.endContainer.parentElement) : (r.endContainer as Element)) as HTMLElement | null;
+
+        function findTok(el: HTMLElement | null): number | null {
+          let cur: HTMLElement | null = el;
+          while (cur && cur !== root) {
+            if ((cur as any).dataset && (cur as any).dataset.ti) {
+              const ti = Number((cur as any).dataset.ti);
+              if (Number.isFinite(ti)) return ti;
+            }
+            cur = cur.parentElement;
+          }
+          return null;
+        }
+        const a = findTok(startSpan);
+        const b = findTok(endSpan);
+        if (a != null && b != null) {
+          const s = Math.min(a, b);
+          const e = Math.max(a, b);
+          onSelectionChange({ start: s, length: e - s + 1 });
+        }
+      }
+    };
+
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, [onSelectionChange]);
+
+  // ---- soft follow: keep focus near 40% height (no 3-line hop) -------------
+  useEffect(() => {
+    // Do not auto-scroll while user is selecting or a selection exists.
+    if (isPointerSelecting || hasSelection) return;
+
+    const root = rootRef.current;
+    if (!root) return;
+    const container =
+      (root.closest(".reader-scroll") as HTMLElement) ||
+      (root.parentElement as HTMLElement);
+    if (!container) return;
+
+    const focusEl = root.querySelector(`.tok[data-ti="${focusStart}"]`) as HTMLElement | null;
+    if (!focusEl) return;
+
+    const desiredRatio = 0.4; // keep focus around 40% from top
+    const desiredTop = Math.max(0, focusEl.offsetTop - container.clientHeight * desiredRatio);
+    const current = container.scrollTop;
+    const delta = desiredTop - current;
+
+    // use a threshold ~= line height to avoid micro-jitters
+    const lh = parseFloat(getComputedStyle(container).lineHeight || "24");
+    if (Math.abs(delta) > (isFinite(lh) ? lh * 0.9 : 20)) {
+      // ease toward the target (smooth & small)
+      container.scrollTo({ top: current + delta * 0.6, behavior: "smooth" });
+    }
+  }, [focusStart, focusLength, visible, isPointerSelecting, hasSelection]);
+
+  // ---- hover/aid ranges etc. ------------------------------------------------
+  const focusEnd   = focusStart + Math.max(0, focusLength - 1);
+  const aidStart   = aidRange ? aidRange.start : -1;
+  const aidEnd     = aidRange ? aidRange.start + aidRange.length - 1 : -2;
+  const hoverStart = hoverRange ? hoverRange.start : -1;
+  const hoverEnd   = hoverRange ? hoverRange.start + hoverRange.length - 1 : -2;
+
   const renderToken = (ti: number) => {
-	const t = tokens[ti];
-	const inFocus = ti >= focusStart && ti <= (focusStart + Math.max(0, focusLength - 1));
-	const inAid   = aidRange ? (ti >= aidRange.start && ti <= (aidRange.start + aidRange.length - 1)) : false;
-	const inClip  = hoverRange ? (ti >= hoverRange.start && ti <= (hoverRange.start + hoverRange.length - 1)) : false;
+    const t = tokens[ti];
+    const inFocus = ti >= focusStart && ti <= focusEnd;
+    const inAid   = ti >= aidStart && ti <= aidEnd;
+    const inClip  = ti >= hoverStart && ti <= hoverEnd;
 
-	let cls = "tok token";
-	if (inFocus) cls += " focus"; else cls += " dim";
-	if (inAid)   cls += " aid";
-	if (inClip)  cls += " clipmark";
-	if (isWhitespace(t)) cls += " ws";
-	if (isWord(t))       cls += " word";
-	
+    let cls = "tok token";
+    if (inFocus) cls += " focus"; else cls += " dim";
+    if (inAid)   cls += " aid";
+    if (inClip)  cls += " clipmark";
+    if (isWhitespace(t)) cls += " ws";
+    if (isWord(t))       cls += " word";
 
-	// Safely split first grapheme for word tokens
-	let content: React.ReactNode = t;
-	if (isWord(t)) {
-		const parts = Array.from(t);
-		const first = parts[0] ?? "";
-		const rest  = parts.slice(1).join("");
-		content = (<><span className="initial">{first}</span>{rest}</>);
-	}
+    // first-letter tint
+    let content: React.ReactNode = t;
+    if (isWord(t)) {
+      const parts = Array.from(t);
+      const first = parts[0] ?? "";
+      const rest  = parts.slice(1).join("");
+      content = (<><span className="initial">{first}</span>{rest}</>);
+    }
 
-	return (
-		<span
-			key={ti}
-			className={cls}
-			data-ti={ti}
-			onClick={() => onJump(ti)}
-		>
-			{content}
-		</span>
-	);
-};
+    return (
+      <span
+        key={ti}
+        className={cls}
+        data-ti={ti}
+        onClick={() => onJump(ti)}
+      >
+        {content}
+      </span>
+    );
+  };
 
-function smoothScrollTokenIntoViewByIndex(ti: number) {
-  const el = document.querySelector<HTMLElement>(`.token[data-ti="${ti}"]`);
-  if (!el) return;
+  // register wrappers to IO
+  const setWrapper = (blockIdx: number, el: HTMLDivElement | null) => {
+    const map = wrappersRef.current;
+    const prev = map.get(blockIdx);
+    if (prev && ioRef.current) ioRef.current.unobserve(prev);
+    if (el) { map.set(blockIdx, el); if (ioRef.current) ioRef.current.observe(el); }
+    else { map.delete(blockIdx); }
+  };
 
-  const sc =
-    (el.closest(".reader-scroll") as HTMLElement) ||
-    (el.parentElement as HTMLElement);
-  if (!sc) return;
+  const onDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = (e.target as HTMLElement);
+    const tiAttr = el?.closest(".tok")?.getAttribute("data-ti");
+    if (!tiAttr) return;
+    const ti = Number(tiAttr);
+    if (!Number.isFinite(ti)) return;
+    onAidRangeChange(sentenceRangeAt(tokens, ti));
+  };
 
-  const cr = sc.getBoundingClientRect();
-  const tr = el.getBoundingClientRect();
-  const margin = 40; // px
-
-  if (tr.bottom > cr.bottom - margin) {
-    const delta = tr.bottom - (cr.bottom - margin);
-    sc.scrollTo({ top: sc.scrollTop + delta, behavior: "smooth" });
-  } else if (tr.top < cr.top + margin) {
-    const delta = (cr.top + margin) - tr.top;
-    sc.scrollTo({ top: sc.scrollTop - delta, behavior: "smooth" });
-  }
-}
   return (
     <div
       ref={rootRef}
       className="reader-container"
-      onDoubleClick={(e)=>{ e.preventDefault(); onDoubleClick(e); }}
       onContextMenu={onContextMenu}
+      onDoubleClick={onDoubleClick}
     >
       {blocks.map((b) => {
         const isVisible = visible.has(b.idx);
@@ -313,30 +340,28 @@ function smoothScrollTokenIntoViewByIndex(ti: number) {
             key={b.key}
             data-block={b.idx}
             ref={(el) => setWrapper(b.idx, el)}
-            className="reader-block"
             style={style}
           >
             {isVisible && (
-              <div ref={(el) => { if (el) contentRef.current.set(b.idx, el); else contentRef.current.delete(b.idx); }}>
-                {Array.from({ length: b.end - b.start + 1 }).map((_, k) => renderToken(b.start + k))}
-              </div>
+              <span>
+                {Array.from({ length: b.end - b.start + 1 }, (_, k) => b.start + k).map(renderToken)}
+              </span>
             )}
           </div>
         );
       })}
 
       {menu.open && (
-        <div
-          className="ctx-bubble"
-          style={{ left: menu.x, top: menu.y }}
-          onMouseLeave={closeMenu}
-        >
-          <button onClick={addClipFromSelectionOrWord}>📝 Add clip</button>
-          <button onClick={goHere}>🎯 Go here</button>
-          <button onClick={setSentenceHere}>🔍 Highlight sentence</button>
-          <button onClick={clearSentence}>✖ Clear sentence</button>
+        <div className="ctx-bubble" style={{ left: menu.x, top: menu.y }}>
+          <button onClick={goHere}>Go to text</button>
+          <button onClick={setSentenceHere}>Select sentence</button>
+          <button onClick={clearSentence}>Clear sentence</button>
+          <button onClick={addClipFromSelectionOrWord}>Add clip</button>
+          <button onClick={closeMenu}>Close</button>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default Reader;
