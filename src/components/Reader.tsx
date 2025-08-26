@@ -165,27 +165,7 @@ useEffect(() => {
  useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-
-    const container =
-      (root.closest(".reader-scroll") as HTMLElement) ||
-      (root.parentElement as HTMLElement);
-
-    if (!container) return;
-    const focusEl = root.querySelector(`.tok[data-ti="${focusStart}"]`) as HTMLElement | null;
-    if (!focusEl) return;
-
-    const cb = container.getBoundingClientRect();
-    const eb = focusEl.getBoundingClientRect();
-    const margin = Math.min(120, cb.height * 0.25);
-
-    if (eb.bottom > cb.bottom - margin) {
-      const delta = eb.bottom - (cb.bottom - margin);
-      container.scrollBy({ top: delta, behavior: "smooth" });
-    } else if (eb.top < cb.top + margin) {
-      const delta = eb.top - (cb.top + margin);
-      container.scrollBy({ top: delta, behavior: "smooth" });
-    }
-  }, [focusStart, focusLength, visible]);
+}, [focusStart, focusLength, visible]);
 
     root.addEventListener("mouseup", onUp);
     return () => { root.removeEventListener("mouseup", onUp); }

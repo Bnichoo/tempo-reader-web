@@ -1,11 +1,8 @@
 diff a/src/components/Reader.tsx b/src/components/Reader.tsx	(rejected hunks)
-@@ -162,30 +162,7 @@
-     return Math.max(16, Math.round(size * pxPerTok));
-   };
- 
--  useEffect(() => {
--    const root = rootRef.current;
--    if (!root) return;
+@@ -165,27 +165,8 @@
+   useEffect(() => {
+     const root = rootRef.current;
+     if (!root) return;
 -
 -    const container =
 -      (root.closest(".reader-scroll") as HTMLElement) ||
@@ -27,7 +24,8 @@ diff a/src/components/Reader.tsx b/src/components/Reader.tsx	(rejected hunks)
 -      container.scrollBy({ top: delta, behavior: "smooth" });
 -    }
 -  }, [focusStart, focusLength, visible]);
-+  
++    // duplicate scrollBy block disabled; smooth scroller handles focus keeping.
++}, [focusStart, focusLength, visible]);
  
      root.addEventListener("mouseup", onUp);
      return () => { root.removeEventListener("mouseup", onUp); }
