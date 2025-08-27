@@ -92,9 +92,10 @@
   gap: 0.5rem;
   overflow-x: auto;
   overflow-y: hidden;
-  max-width: calc(100% - 120px); /* Leave room for the button */
+  max-width: 100%;
   scroll-behavior: smooth;
   position: relative;
+  padding: 0 2px;
 }
 
 /* Hide scrollbar but keep functionality */
@@ -106,33 +107,13 @@
   scrollbar-width: none;
 }
 
-/* Edge fade indicators */
-.dock-chips-fade-left,
-.dock-chips-fade-right {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 24px;
-  pointer-events: none;
-  z-index: 1;
+/* Scroll indicators for dark mode */
+[data-theme="dark"] .bg-gradient-to-r.from-white\/90 {
+  background: linear-gradient(90deg, var(--sepia-100) 60%, transparent);
 }
 
-.dock-chips-fade-left {
-  left: 0;
-  background: linear-gradient(90deg, var(--panel-bg), transparent);
-}
-
-.dock-chips-fade-right {
-  right: 0;
-  background: linear-gradient(-90deg, var(--panel-bg), transparent);
-}
-
-[data-theme="dark"] .dock-chips-fade-left {
-  background: linear-gradient(90deg, var(--sepia-100), transparent);
-}
-
-[data-theme="dark"] .dock-chips-fade-right {
-  background: linear-gradient(-90deg, var(--sepia-100), transparent);
+[data-theme="dark"] .bg-gradient-to-l.from-white\/90 {
+  background: linear-gradient(-90deg, var(--sepia-100) 60%, transparent);
 }
 
 /* Reader Container */
@@ -216,9 +197,6 @@
   background:rgba(255,255,255,.6); width:100%; text-align:left;
 }
 .ctx-bubble button:hover{ background:rgba(255,255,255,.95); }
-
-/* Resizer */
-.resizer{ height:8px; cursor:row-resize; background:linear-gradient(to bottom,transparent,var(--sepia-100),transparent); }
 
 /* Clips panel */
 .clip-card{ position:relative; }

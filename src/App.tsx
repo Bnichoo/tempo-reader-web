@@ -952,29 +952,6 @@ export default function App() {
     };
   }, [drawerOpen]);
 
-  /* ------- Reader/clips area sizing (baseline) ------- */
-  const [readerRatio, setReaderRatio] = useState(0.7);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
-  useEffect(() => {
-    function onMove(ev: MouseEvent) {
-      if (!draggingRef.current || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const y = ev.clientY - rect.top;
-      const ratio = clamp(y / rect.height, 0.3, 0.85);
-      setReaderRatio(ratio);
-    }
-    function onUp() {
-      draggingRef.current = false;
-    }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, []);
-
   /* ------- Reader click/selection events ------- */
   useEffect(() => {
     const onToggle = () => setPlaying((p) => !p);
@@ -989,6 +966,7 @@ export default function App() {
 
   /* ------- Persist settings & clips ------- */
   const [clips, setClips] = useState<Clip[]>([]);
+  const [clipsLoaded, setClipsLoaded] = useState(false); // Track if initial load is done
   const [hoverRange, setHoverRange] = useState<RangeT | null>(null);
   const [aidRange, setAidRange] = useState<RangeT | null>(null);
   const [aidAuto, setAidAuto] = useState(false);
@@ -1011,7 +989,9 @@ export default function App() {
     sc(c, "drawerOpen", (v) => setDrawerOpen(!!v));
     const raw = loadClipsRaw();
     if (raw?.length) setClips(pruneClips(migrateClips(raw)));
+    setClipsLoaded(true); // Mark as loaded after attempting to load
   }, []);
+  
   useEffect(() => {
     const settings: SettingsV1 = {
       wps,
@@ -1026,9 +1006,11 @@ export default function App() {
     };
     saveSettings(settings);
   }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen]);
+  
   useEffect(() => {
+    if (!clipsLoaded) return; // Don't save until initial load is done
     saveClips(clips);
-  }, [clips]);
+  }, [clips, clipsLoaded]);
 
   /* ------- Auto-backup on unload ------- */
   const backupRef = useRef<{ settings: SettingsV1; clips: Clip[] } | null>(null);
@@ -1261,13 +1243,12 @@ export default function App() {
     ["--dim-blur"]?: string;
   };
   const readerStyle: CSSVars = {
-    height: `calc(${(readerRatio * 100).toFixed(2)}% - 4px)`,
     fontSize: `${fontPx}px`,
     ["--word-gap"]: `${computedGapEm}em`,
     ["--scale-focus"]: String(focusScale),
     ["--scale-dim"]: String(dimScale),
     ["--dim-blur"]: `${dimBlur}px`,
-    paddingBottom: `${64 + 12}px`, // space for dock when collapsed
+    paddingBottom: `${64 + 24}px`, // space for dock
   };
 
   /* ------- Keyboard shortcuts ------- */
@@ -1343,9 +1324,9 @@ export default function App() {
     }
     const rect = el.getBoundingClientRect();
     const x = dockLastMouseX.current;
-    const ZONE = 120;
-    const MIN = 6;
-    const MAX = 15;
+    const ZONE = 60;
+    const MIN = 2;
+    const MAX = 8;
     
     let dx = 0;
     const dLeft = x - rect.left;
@@ -1611,42 +1592,30 @@ export default function App() {
       {/* Main area */}
       <div className="page-wrap" style={{ ["--drawer-offset" as any]: `${drawerOffset}px` }}>
         <main className="max-w-5xl mx-auto p-4 h-[calc(100vh-64px)] md:h-[calc(100vh-64px)] relative">
-          <div ref={containerRef} className="w-full h-full flex flex-col min-h-0">
-            <section
-              className="reader-scroll relative flex-1 min-h-0 rounded-2xl shadow-sm bg-white p-6 border border-sepia-200 overflow-y-auto scroll-smooth"
-              style={{
-                ...readerStyle,
-                filter: clipsExpanded ? "blur(0.2px)" : undefined,
+          <section
+            className="reader-scroll w-full h-full rounded-2xl shadow-sm bg-white p-6 border border-sepia-200 overflow-y-auto scroll-smooth"
+            style={{
+              ...readerStyle,
+              filter: clipsExpanded ? "blur(0.2px)" : undefined,
+            }}
+          >
+            <Reader
+              tokens={tokens}
+              focusStart={focusRange.start}
+              focusLength={focusRange.length}
+              hoverRange={hoverRange}
+              aidRange={aidRange}
+              playing={playing}
+              onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
+              onAddClip={(range) => {
+                setPendingRange(range);
+                setEditingClipId(null);
+                setNoteOpen(true);
               }}
-            >
-              <Reader
-                tokens={tokens}
-                focusStart={focusRange.start}
-                focusLength={focusRange.length}
-                hoverRange={hoverRange}
-                aidRange={aidRange}
-                playing={playing}
-                onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
-                onAddClip={(range) => {
-                  setPendingRange(range);
-                  setEditingClipId(null);
-                  setNoteOpen(true);
-                }}
-                onAidRangeChange={setAidRange}
-                onSelectionChange={setCurrentSelection}
-              />
-            </section>
-
-            {/* Resizer keeps baseline ratio feature */}
-            <div
-              className="resizer"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                (draggingRef as any).current = true;
-              }}
-              title="Drag to resize"
+              onAidRangeChange={setAidRange}
+              onSelectionChange={setCurrentSelection}
             />
-          </div>
+          </section>
 
           {/* ---- CLIPS DOCK (overlay, always visible at bottom) ---- */}
           <div
