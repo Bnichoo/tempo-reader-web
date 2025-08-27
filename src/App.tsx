@@ -1149,6 +1149,10 @@ export default function App() {
     () => ({ start: focusTokenStart, length: Math.max(1, focusTokenEnd - focusTokenStart + 1) }),
     [focusTokenStart, focusTokenEnd]
   );
+  const liveAidRange = useMemo(
+  () => (aidAuto ? sentenceRangeAt(tokens, focusTokenStart) : aidRange),
+  [aidAuto, tokens, focusTokenStart, aidRange]
+  );
 
   /* ------- Notes / clips actions ------- */
   const [noteOpen, setNoteOpen] = useState(false);
@@ -1581,7 +1585,7 @@ export default function App() {
                 focusStart={focusRange.start}
                 focusLength={focusRange.length}
                 hoverRange={hoverRange}
-                aidRange={aidRange}
+                aidRange={liveAidRange}
                 playing={playing}
                 onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
                 onAddClip={(range) => {
