@@ -59,7 +59,7 @@ function sentenceRangeAt(tokens: string[], i: number): RangeT {
   return { start: s, length: Math.max(1, e - s + 1) };
 }
 const isAlphaNum = (t: string) => /\p{L}|\p{N}/u.test(t);
-const isJoiner = (t: string) => t === "’" || t === "'" || t === "-" || t === "_";
+const isJoiner = (t: string) => t === "'" || t === "'" || t === "-" || t === "_";
 
 /* ---------------- Sanitizer ---------------- */
 const ALLOW_TAG = new Set(["b", "strong", "i", "em", "u", "a", "p", "ul", "ol", "li", "br"]);
@@ -207,11 +207,11 @@ function migrateClips(list: any[]): Clip[] {
 }
 
 /* ---------------- Sample text ---------------- */
-const SAMPLE_TEXT = `Reading isn’t one thing; it is a braid of habits woven together. As eyes move, the mind predicts, discards, and stitches meaning on the fly. Most of this happens below awareness, but our experience of a page changes dramatically when attention is guided.
+const SAMPLE_TEXT = `Reading isn't one thing; it is a braid of habits woven together. As eyes move, the mind predicts, discards, and stitches meaning on the fly. Most of this happens below awareness, but our experience of a page changes dramatically when attention is guided.
 
 Focus reading makes that guidance explicit. It gives a gentle nudge to where your attention should settle next, then steps out of the way. The rhythm matters: too fast and comprehension collapses; too slow and your mind wanders off the line.
 
-Clips are memory anchors. When you highlight a passage and jot a quick note, you are leaving a breadcrumb for your future self. The value of a clip is rarely the text alone; it’s the thought you attach to it.
+Clips are memory anchors. When you highlight a passage and jot a quick note, you are leaving a breadcrumb for your future self. The value of a clip is rarely the text alone; it's the thought you attach to it.
 
 Try jumping between clips and let your eyes glide. Notice how the sentence structure becomes more obvious when the clutter fades. This is where reading feels less like scanning and more like following a current.`;
 
@@ -894,6 +894,8 @@ export default function App() {
 
   // hover-scroll + auto-close after idle
   const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerPanel = drawerRef;  // Identifier kept for compatibility
+  const drawerPanelDark = dark ? drawerRef : null;  // Identifier kept for compatibility
   const rafRef = useRef<number | null>(null);
   const lastMouseY = useRef<number>(0);
   const stepAutoScroll = () => {
@@ -1149,10 +1151,6 @@ export default function App() {
     () => ({ start: focusTokenStart, length: Math.max(1, focusTokenEnd - focusTokenStart + 1) }),
     [focusTokenStart, focusTokenEnd]
   );
-  const liveAidRange = useMemo(
-  () => (aidAuto ? sentenceRangeAt(tokens, focusTokenStart) : aidRange),
-  [aidAuto, tokens, focusTokenStart, aidRange]
-  );
 
   /* ------- Notes / clips actions ------- */
   const [noteOpen, setNoteOpen] = useState(false);
@@ -1329,8 +1327,49 @@ export default function App() {
     const pinned = clips.filter((c) => c.pinned);
     const others = clips.filter((c) => !c.pinned);
     const src = [...pinned, ...others];
-    return src.slice(0, 2);
+    return src.slice(0, 12); // Show more chips since we have scrolling
   }, [clips]);
+
+  // Dock strip edge-hover scrolling
+  const dockStripRef = useRef<HTMLDivElement>(null);
+  const dockScrollRafRef = useRef<number | null>(null);
+  const dockLastMouseX = useRef<number>(0);
+  
+  const stepDockScroll = () => {
+    const el = dockStripRef.current;
+    if (!el) {
+      dockScrollRafRef.current = null;
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const x = dockLastMouseX.current;
+    const ZONE = 120;
+    const MIN = 6;
+    const MAX = 15;
+    
+    let dx = 0;
+    const dLeft = x - rect.left;
+    const dRight = rect.right - x;
+    
+    if (dLeft >= 0 && dLeft <= ZONE) {
+      const t = 1 - dLeft / ZONE;
+      dx = -(MIN + (MAX - MIN) * t);
+    } else if (dRight >= 0 && dRight <= ZONE) {
+      const t = 1 - dRight / ZONE;
+      dx = MIN + (MAX - MIN) * t;
+    }
+    
+    if (dx !== 0) {
+      el.scrollLeft += dx;
+      dockScrollRafRef.current = requestAnimationFrame(stepDockScroll);
+    } else {
+      dockScrollRafRef.current = null;
+    }
+  };
+
+  // Identifiers for compatibility
+  const dockContainer = dockStripRef;
+  const dockContainerDark = dark ? dockStripRef : null;
 
   /* ============================ Render ============================ */
   return (
@@ -1585,7 +1624,7 @@ export default function App() {
                 focusStart={focusRange.start}
                 focusLength={focusRange.length}
                 hoverRange={hoverRange}
-                aidRange={liveAidRange}
+                aidRange={aidRange}
                 playing={playing}
                 onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
                 onAddClip={(range) => {
@@ -1617,7 +1656,7 @@ export default function App() {
             <div className="mx-auto max-w-5xl px-4">
               <div className="rounded-t-2xl border border-sepia-200 bg-white/80 backdrop-blur px-3 py-2 shadow-sm flex items-center gap-3">
                 <button
-                  className="px-3 py-1.5 text-sm rounded-lg border border-sepia-300 bg-white hover:bg-sepia-50"
+                  className="px-3 py-1.5 text-sm rounded-lg border border-sepia-300 bg-white hover:bg-sepia-50 flex-shrink-0"
                   onClick={() => {
                     setPlaying(false);
                     setClipsExpanded(true);
@@ -1629,14 +1668,29 @@ export default function App() {
 
                 {topChips.length === 0 ? (
                   <div className="text-xs text-sepia-700">
-                    No clips yet. Select text → right click → “Add clip”.
+                    No clips yet. Select text → right click → "Add clip".
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 overflow-x-auto">
+                  <div 
+                    ref={dockStripRef}
+                    className="dock-chips-container relative"
+                    onMouseMove={(e) => {
+                      dockLastMouseX.current = e.clientX;
+                      if (!dockScrollRafRef.current) {
+                        dockScrollRafRef.current = requestAnimationFrame(stepDockScroll);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (dockScrollRafRef.current) {
+                        cancelAnimationFrame(dockScrollRafRef.current);
+                        dockScrollRafRef.current = null;
+                      }
+                    }}
+                  >
                     {topChips.map((c) => (
                       <button
                         key={c.id}
-                        className="px-2.5 py-1.5 text-xs rounded-xl border border-sepia-300 bg-white hover:bg-sepia-50"
+                        className="px-2.5 py-1.5 text-xs rounded-xl border border-sepia-300 bg-white hover:bg-sepia-50 flex-shrink-0"
                         onClick={() => {
                           setWIndex(wordIndexFromToken(c.start));
                           setClipsExpanded(false);

@@ -42,13 +42,22 @@
   --sepia-800:#d7c7b0;
 
   --panel-bg: var(--sepia-100);
+  
+  /* Button contrast improvements for dark mode */
+  --button-bg: #3a3833;
+  --button-hover: #4a4741;
+  --button-border: #4a4741;
+  --button-text: #e9e6e1;
 }
 
 [data-theme="dark"] body,
 [data-theme="dark"] .min-h-screen{ background:var(--sepia-50); color:var(--reader-fg); }
 [data-theme="dark"] header{ background:color-mix(in srgb, var(--sepia-50) 86%, transparent); border-color:var(--sepia-200); }
 [data-theme="dark"] .bg-white{ background:var(--sepia-100) !important; }
+[data-theme="dark"] .bg-white\/70{ background:color-mix(in srgb, var(--sepia-100) 70%, transparent) !important; }
+[data-theme="dark"] .bg-white\/80{ background:color-mix(in srgb, var(--sepia-100) 80%, transparent) !important; }
 [data-theme="dark"] .border-sepia-200{ border-color:var(--sepia-200) !important; }
+[data-theme="dark"] .border-sepia-300{ border-color:var(--sepia-400) !important; }
 [data-theme="dark"] .text-sepia-700{ color:var(--sepia-700) !important; }
 [data-theme="dark"] .drawer-left{ background:#22211e; border-right-color:var(--sepia-200); }
 [data-theme="dark"] .drawer-toggle-fab{ background:#22211e; border-color:var(--sepia-200); }
@@ -57,6 +66,74 @@
 [data-theme="dark"] .modal-window,
 [data-theme="dark"] .note-editor{ background:#22211e; color:var(--reader-fg); border-color:var(--sepia-200); }
 [data-theme="dark"] .modal-backdrop{ background:rgba(0,0,0,.5); }
+
+/* Dark mode button improvements - better contrast */
+[data-theme="dark"] .clip-actions button,
+[data-theme="dark"] button:not(.primary) {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-color: var(--button-border);
+}
+[data-theme="dark"] .clip-actions button:hover,
+[data-theme="dark"] button:not(.primary):hover {
+  background: var(--button-hover);
+}
+[data-theme="dark"] .hover\:bg-sepia-50:hover { 
+  background: var(--button-hover) !important; 
+}
+[data-theme="dark"] .hover\:bg-white:hover { 
+  background: var(--button-hover) !important; 
+}
+
+/* Dock chip scrolling container */
+.dock-chips-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: calc(100% - 120px); /* Leave room for the button */
+  scroll-behavior: smooth;
+  position: relative;
+}
+
+/* Hide scrollbar but keep functionality */
+.dock-chips-container::-webkit-scrollbar {
+  height: 0;
+}
+
+.dock-chips-container {
+  scrollbar-width: none;
+}
+
+/* Edge fade indicators */
+.dock-chips-fade-left,
+.dock-chips-fade-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dock-chips-fade-left {
+  left: 0;
+  background: linear-gradient(90deg, var(--panel-bg), transparent);
+}
+
+.dock-chips-fade-right {
+  right: 0;
+  background: linear-gradient(-90deg, var(--panel-bg), transparent);
+}
+
+[data-theme="dark"] .dock-chips-fade-left {
+  background: linear-gradient(90deg, var(--sepia-100), transparent);
+}
+
+[data-theme="dark"] .dock-chips-fade-right {
+  background: linear-gradient(-90deg, var(--sepia-100), transparent);
+}
 
 /* Reader Container */
 .reader-container{
@@ -82,10 +159,10 @@
   transform: translateZ(0) scale(calc(var(--scale-base) + (0.08 * var(--active,0))));
   position: relative;
   will-change: transform, filter;
-  overflow: hidden;               /* prevents vertical “bands” */
-  vertical-align: baseline;       /* consistent line alignment */
-  contain: paint;        /* isolates the blur/glow to the token box */
-  padding: 0 .02em;      /* tiny side padding so clipping doesn't cut glyph edges */
+  overflow: hidden;
+  vertical-align: baseline;
+  contain: paint;
+  padding: 0 .02em;
 }
 .token.word{ margin: 0 calc(var(--word-gap) * .8) 0 calc(var(--word-gap) * .4); }
 
@@ -99,8 +176,6 @@
 
 .token.dim  { --scale-base: var(--scale-dim); filter: blur(var(--dim-blur)); opacity:.78; }
 
-
-
 /* First-letter emphasis */
 .token .initial{ font-weight:700; color:var(--reader-focus); }
 .token.word .initial{ color:var(--reader-focus); }
@@ -113,7 +188,7 @@
 .reader-container ::selection{ background:var(--sepia-100); color:inherit; }
 .reader-container ::-moz-selection{ background:var(--sepia-100); color:inherit; }
 
-/* Hover “glide” neighbor effect */
+/* Hover "glide" neighbor effect */
 :root{ --glide-0:1; --glide-1:.8; --glide-2:.5; --glide-3:.35; --glide-4:.25; --glide-5:.18; }
 .token:is(:hover,:focus-visible){ --active: var(--glide-0) }
 .token:is(:hover,:focus-visible) + .token,
@@ -128,7 +203,6 @@
 .token:has(+ .token + .token + .token + .token + .token:is(:hover,:focus-visible)){ --active: var(--glide-5) }
 
 /* Context Menu (bubble) */
-/* Vertical bubble menu layout*/
 .ctx-bubble{
   position:fixed; z-index:60; transform:translate(-4px, -4px);
   background:rgba(255,255,255,.8); backdrop-filter: blur(10px);
@@ -167,14 +241,6 @@
 .modal-footer button{ padding:8px 12px; border:1px solid var(--sepia-200); border-radius:8px; background:#fff; }
 .modal-footer button.primary{ background:var(--sepia-800); color:#fff; border-color:var(--sepia-800); }
 .modal-footer button.primary:hover{ background:var(--sepia-700); }
-
-/* Aid pill */
-.aid-pill{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:4px 10px; border:1px solid var(--sepia-200); border-radius:999px;
-  background:#fff; font-size:12px; cursor:pointer;
-}
-.aid-pill:hover{ background:var(--sepia-50); }
 
 /* Left-edge Drawer (push content) */
 .drawer-left{
@@ -240,17 +306,16 @@
 
 /* --- Spacing/blur stability --- */
 .reader-scroll{
-  /* keep the reader inside the viewport so it stops pushing the page down */
   max-height: min(72vh, calc(100vh - 260px));
   height: min(72vh, calc(100vh - 260px));
   overflow: auto;
-  scroll-behavior: smooth; /* used by our smooth scrolling below */
+  scroll-behavior: smooth;
 }
 
-/* Stable line height on the text container (adjust value if needed) */
+/* Stable line height on the text container */
 .reader-container { line-height: 1.8; }
 
-/* Clip glow/blur so it can’t bleed into neighboring lines */
+/* Clip glow/blur so it can't bleed into neighboring lines */
 .token{
   overflow: hidden;
   vertical-align: baseline;
@@ -260,4 +325,3 @@
 
 /* Slightly tighter halo so it doesn't look like extra gap */
 .token.focus::before{ inset:-.06em -.18em; }
-
