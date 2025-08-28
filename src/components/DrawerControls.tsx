@@ -68,47 +68,49 @@ export function DrawerControls(props: DrawerControlsProps) {
 
         <div className="my-3">
           <label htmlFor="ctl-wps" className="text-xs text-sepia-700 mb-1">Tempo (words/sec): {wps.toFixed(1)}</label>
-          <input type="range" min={0.5} max={3} step={0.1} value={wps} onChange={(e) => setWps(parseFloat(e.target.value))} />
+          <input id="ctl-wps" type="range" min={0.5} max={3} step={0.1} value={wps} onChange={(e) => setWps(parseFloat(e.target.value))} />
         </div>
 
         <div className="my-3">
           <label htmlFor="ctl-count" className="text-xs text-sepia-700 mb-1">Words shown: {count}</label>
-          <input type="range" min={1} max={7} step={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} />
+          <input id="ctl-count" type="range" min={1} max={7} step={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} />
         </div>
 
         <div className="my-3">
           <label htmlFor="ctl-gap" className="text-xs text-sepia-700 mb-1">Text spacing (em): {gap.toFixed(2)}</label>
-          <input type="range" min={0.2} max={0.8} step={0.01} value={gap} onChange={(e) => setGap(parseFloat(e.target.value))} />
+          <input id="ctl-gap" type="range" min={0.2} max={0.8} step={0.01} value={gap} onChange={(e) => setGap(parseFloat(e.target.value))} />
         </div>
 
         <div className="my-3">
           <label htmlFor="ctl-focus" className="text-xs text-sepia-700 mb-1">In-focus size: {focusScale.toFixed(2)}</label>
-          <input type="range" min={1.0} max={1.6} step={0.01} value={focusScale} onChange={(e) => setFocusScale(parseFloat(e.target.value))} />
+          <input id="ctl-focus" type="range" min={1.0} max={1.6} step={0.01} value={focusScale} onChange={(e) => setFocusScale(parseFloat(e.target.value))} />
         </div>
 
         <div className="my-3">
           <label htmlFor="ctl-dimscale" className="text-xs text-sepia-700 mb-1">Out-of-focus size: {dimScale.toFixed(2)}</label>
-          <input type="range" min={0.85} max={1.0} step={0.01} value={dimScale} onChange={(e) => setDimScale(parseFloat(e.target.value))} />
+          <input id="ctl-dimscale" type="range" min={0.85} max={1.0} step={0.01} value={dimScale} onChange={(e) => setDimScale(parseFloat(e.target.value))} />
         </div>
 
         <div className="my-3">
           <label htmlFor="ctl-dimblur" className="text-xs text-sepia-700 mb-1">Out-of-focus blur (px): {dimBlur.toFixed(2)}</label>
-          <input type="range" min={0} max={2.5} step={0.1} value={dimBlur} onChange={(e) => setDimBlur(parseFloat(e.target.value))} />
+          <input id="ctl-dimblur" type="range" min={0} max={2.5} step={0.1} value={dimBlur} onChange={(e) => setDimBlur(parseFloat(e.target.value))} />
         </div>
 
         <div className="my-3">
           <label htmlFor="ctl-fontpx" className="text-xs text-sepia-700 mb-1">Text size (px): {fontPx}</label>
-          <input type="range" min={16} max={28} step={1} value={fontPx} onChange={(e) => setFontPx(parseInt(e.target.value, 10))} />
+          <input id="ctl-fontpx" type="range" min={16} max={28} step={1} value={fontPx} onChange={(e) => setFontPx(parseInt(e.target.value, 10))} />
         </div>
 
         <div className="my-4 border-t border-sepia-200 pt-3">
           <div className="text-sm font-semibold mb-2">Data</div>
-          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition cursor-pointer">
-            {isImporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Upload aria-hidden size={16} />} {isImporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Upload aria-hidden size={16} />}
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition cursor-pointer" aria-busy={isImporting}>
+            {isImporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Upload aria-hidden size={16} />}
+            <span>{isImporting ? "Importing..." : "Import Settings"}</span>
             <input type="file" accept="application/json" className="hidden" disabled={isImporting} onChange={(e) => onImportJson(e.target.files?.[0] ?? null)} />
           </label>
-          <button className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition disabled:opacity-50" onClick={doExport} disabled={isExporting} title="Export clips + settings">
-            {isExporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Download aria-hidden size={16} />} {isExporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Download aria-hidden size={16} />}
+          <button className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition disabled:opacity-50" onClick={doExport} disabled={isExporting} title="Export clips + settings" aria-busy={isExporting}>
+            {isExporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Download aria-hidden size={16} />}
+            <span>{isExporting ? "Exporting..." : "Export Settings"}</span>
           </button>
           <div className="text-xs text-sepia-700 mt-2">Auto-backup on close is always on.</div>
         </div>
