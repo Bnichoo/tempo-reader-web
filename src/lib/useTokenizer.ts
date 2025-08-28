@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { tokenizeImpl as tokenizeSync } from "./tokenizeImpl"
+import { LIMITS } from "./constants"
 
 export function useTokenizer(text: string) {
   const [tokens, setTokens] = useState<string[]>(() => tokenizeSync(text))
@@ -7,7 +8,7 @@ export function useTokenizer(text: string) {
   const reqId = useRef(0)
 
   const useWorker = useMemo(() => {
-    return typeof Worker !== "undefined" && text.length > 10000
+    return typeof Worker !== "undefined" && text.length > LIMITS.TOKENIZE_WORKER_THRESHOLD
   }, [text])
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, RangeT } from "../types";
 import { sanitizeHTML } from "../lib/sanitize";
+import { useEdgeScroll } from "../hooks/useEdgeScroll";
 
 type ClipManagerProps = {
   clips: Clip[];
@@ -50,36 +51,7 @@ export function ClipManager(props: ClipManagerProps) {
 
   // Dock strip edge-hover scrolling
   const dockStripRef = useRef<HTMLDivElement>(null);
-  const dockScrollRafRef = useRef<number | null>(null);
-  const dockLastMouseX = useRef<number>(0);
-  const stepDockScroll = () => {
-    const el = dockStripRef.current;
-    if (!el) {
-      dockScrollRafRef.current = null;
-      return;
-    }
-    const rect = el.getBoundingClientRect();
-    const x = dockLastMouseX.current;
-    const ZONE = 60;
-    const MIN = 2;
-    const MAX = 8;
-    let dx = 0;
-    const dLeft = x - rect.left;
-    const dRight = rect.right - x;
-    if (dLeft >= 0 && dLeft <= ZONE) {
-      const t = 1 - dLeft / ZONE;
-      dx = -(MIN + (MAX - MIN) * t);
-    } else if (dRight >= 0 && dRight <= ZONE) {
-      const t = 1 - dRight / ZONE;
-      dx = MIN + (MAX - MIN) * t;
-    }
-    if (dx !== 0) {
-      el.scrollLeft += dx;
-      dockScrollRafRef.current = requestAnimationFrame(stepDockScroll);
-    } else {
-      dockScrollRafRef.current = null;
-    }
-  };
+  const edge = useEdgeScroll(dockStripRef);
 
   // Context menu state (local to component)
   const [clipMenu, setClipMenu] = useState<{
@@ -157,18 +129,8 @@ export function ClipManager(props: ClipManagerProps) {
               <div
                 ref={dockStripRef}
                 className="dock-chips-container relative"
-                onMouseMove={(e) => {
-                  dockLastMouseX.current = e.clientX;
-                  if (!dockScrollRafRef.current) {
-                    dockScrollRafRef.current = requestAnimationFrame(stepDockScroll);
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (dockScrollRafRef.current) {
-                    cancelAnimationFrame(dockScrollRafRef.current);
-                    dockScrollRafRef.current = null;
-                  }
-                }}
+                onMouseMove={edge.onMouseMove}
+                onMouseLeave={edge.onMouseLeave}
               >
                 {topChips.map((c) => (
                   <button

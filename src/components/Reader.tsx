@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { LIMITS } from "../lib/constants";
 
 type RangeT = { start: number; length: number };
 type Props = {
@@ -24,8 +25,8 @@ function sentenceRangeAt(tokens: string[], i: number): RangeT {
   return { start: s, length: Math.max(1, e - s + 1) };
 }
 
-const BLOCK_SIZE = 600;
-const IO_ROOT_MARGIN = "800px";
+const BLOCK_SIZE = LIMITS.BLOCK_SIZE;
+const IO_ROOT_MARGIN = LIMITS.IO_ROOT_MARGIN;
 
 const isWhitespace = (t: string) => /^\s+$/.test(t);
 const isWord = (t: string) => /[\p{L}\p{N}]/u.test(t);
@@ -261,6 +262,16 @@ export const Reader: React.FC<Props> = ({
   const hoverStart = hoverRange ? hoverRange.start : -1;
   const hoverEnd   = hoverRange ? hoverRange.start + hoverRange.length - 1 : -2;
 
+  const styleFocus = useMemo<React.CSSProperties>(() => ({
+    transform: "scale(var(--scale-focus))",
+    transition: "transform 160ms ease, filter 160ms ease",
+  }), []);
+  const styleDim = useMemo<React.CSSProperties>(() => ({
+    transform: "scale(var(--scale-dim))",
+    filter: "blur(var(--dim-blur))",
+    transition: "transform 160ms ease, filter 160ms ease",
+  }), []);
+
   const renderToken = (ti: number) => {
     const t = tokens[ti];
     const inFocus = ti >= focusStart && ti <= focusEnd;
@@ -275,9 +286,7 @@ export const Reader: React.FC<Props> = ({
     if (isWord(t))       cls += " word";
 
     // inline style to ensure sliders take effect (uses CSS vars from parent)
-    const style: React.CSSProperties = inFocus
-      ? { transform: "scale(var(--scale-focus))", transition: "transform 160ms ease, filter 160ms ease" }
-      : { transform: "scale(var(--scale-dim))",   filter: "blur(var(--dim-blur))", transition: "transform 160ms ease, filter 160ms ease" };
+    const style: React.CSSProperties = inFocus ? styleFocus : styleDim;
 
     // first-letter tint
     let content: React.ReactNode = t;
@@ -340,6 +349,11 @@ export const Reader: React.FC<Props> = ({
         const style: React.CSSProperties = {
           minHeight: isVisible ? undefined : estimateHeight(b.idx),
         };
+        const renderRange = (start: number, end: number) => {
+          const nodes: React.ReactNode[] = [];
+          for (let ti = start; ti <= end; ti++) nodes.push(renderToken(ti));
+          return nodes;
+        };
         return (
           <div
             key={b.key}
@@ -349,7 +363,7 @@ export const Reader: React.FC<Props> = ({
           >
             {isVisible && (
               <span>
-                {Array.from({ length: b.end - b.start + 1 }, (_, k) => b.start + k).map(renderToken)}
+                {renderRange(b.start, b.end)}
               </span>
             )}
           </div>

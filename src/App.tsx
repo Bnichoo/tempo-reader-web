@@ -6,6 +6,16 @@ import type { Clip, RangeT, SettingsV1 } from "./types";
 import { NoteEditorModal } from "./components/NoteEditorModal";
 import { DrawerControls } from "./components/DrawerControls";
 import { ClipManager } from "./components/ClipManager";
+import { LIMITS } from "./lib/constants";
+import { clipRepository } from "./lib/clipUtils";
+import {
+  loadSettings as loadSettingsStorage,
+  saveSettings as saveSettingsStorage,
+  loadClips as loadClipsStorage,
+  saveClips as saveClipsStorage,
+  exportDataFile,
+  parseImport,
+} from "./lib/storage";
 // SVG icons (lucide-react) to replace previous corrupted glyphs
 import BookOpenTextIcon from "lucide-react/dist/esm/icons/book-open-text.js";
 import UploadIcon from "lucide-react/dist/esm/icons/upload.js";
@@ -34,58 +44,7 @@ const isJoiner = (t: string) => t === "'" || t === "'" || t === "-" || t === "_"
 // Using sanitizeHTML from ./lib/sanitize
 
 /* ---------------- Persistence ---------------- */
-const K_SETTINGS = "tr:settings:v1";
-const K_CLIPS = "tr:clips:v1";
 const K_BACKUP = "tr:backup:v1";
-
-const MAX_IMPORT_BYTES = 1024 * 1024;
-const MAX_CLIPS = 500;
-
-function loadSettings(): Partial<SettingsV1> | null {
-  try {
-    return JSON.parse(localStorage.getItem(K_SETTINGS) || "null");
-  } catch {
-    return null;
-  }
-}
-function saveSettings(s: SettingsV1) {
-  try {
-    localStorage.setItem(K_SETTINGS, JSON.stringify(s));
-  } catch {}
-}
-function loadClipsRaw(): unknown[] {
-  try {
-    const a = JSON.parse(localStorage.getItem(K_CLIPS) || "[]");
-    return Array.isArray(a) ? a : [];
-  } catch {
-    return [];
-  }
-}
-function saveClips(list: Clip[]) {
-  try {
-    localStorage.setItem(K_CLIPS, JSON.stringify(list));
-  } catch {}
-}
-function exportDataFile(payload: { settings: SettingsV1; clips: Clip[] }) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `tempo-reader-export-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-function parseImport(json: string): { settings?: Partial<SettingsV1>; clips?: unknown[] } {
-  const data = JSON.parse(json);
-  const out: { settings?: Partial<SettingsV1>; clips?: unknown[] } = {};
-  if (data && typeof data === "object") {
-    if (data.settings && typeof data.settings === "object") out.settings = data.settings;
-    if (Array.isArray(data.clips)) out.clips = data.clips;
-  }
-  return out;
-}
 function clampSettings(s: Partial<SettingsV1>): Partial<SettingsV1> {
   const r: Partial<SettingsV1> = { ...s };
   const c = (v: number, min: number, max: number) => clamp(Number(v), min, max);
@@ -98,43 +57,7 @@ function clampSettings(s: Partial<SettingsV1>): Partial<SettingsV1> {
   if (r.fontPx != null) r.fontPx = c(r.fontPx, 16, 28);
   return r;
 }
-function pruneClips(list: Clip[]): Clip[] {
-  if (list.length <= MAX_CLIPS) return list;
-  const pinned = list.filter((c) => c.pinned);
-  const rest = list
-    .filter((c) => !c.pinned)
-    .sort(
-      (a, b) =>
-        new Date(b.createdUtc).getTime() - new Date(a.createdUtc).getTime()
-    );
-  return [...pinned, ...rest].slice(0, MAX_CLIPS);
-}
-/** MIGRATION: normalize old/raw clip objects */
-function migrateClips(list: unknown[]): Clip[] {
-  const arr = Array.isArray(list) ? list : [];
-  const nowIso = new Date().toISOString();
-  return arr.map((c: unknown, idx: number) => {
-    const obj: Record<string, unknown> = (c && typeof c === "object") ? (c as Record<string, unknown>) : {};
-    const id: string =
-      typeof obj.id === "string" && obj.id
-        ? obj.id
-        : (crypto?.randomUUID ? crypto.randomUUID() : `${nowIso}-${idx}`);
-    const startU = obj["start"];
-    const lengthU = obj["length"];
-    const start = Math.max(0, typeof startU === "number" ? startU : Number(startU) || 0);
-    const length = Math.max(1, typeof lengthU === "number" ? lengthU : Number(lengthU) || 1);
-    const snippet = typeof obj.snippet === "string" ? (obj.snippet as string) : "";
-    const pinnedU = obj["pinned"];
-    const pinned = typeof pinnedU === "boolean" ? pinnedU : Boolean(pinnedU);
-    const createdUtc =
-      typeof obj.createdUtc === "string" && obj.createdUtc ? (obj.createdUtc as string) : nowIso;
-    const noteHtml =
-      typeof obj.noteHtml === "string" && obj.noteHtml
-        ? sanitizeHTML(obj.noteHtml as string)
-        : undefined;
-    return { id, start, length, snippet, noteHtml, pinned, createdUtc };
-  });
-}
+// clip pruning/migration moved to src/lib/clipUtils.ts
 
 /* ---------------- Sample text ---------------- */
 const SAMPLE_TEXT = `Reading isn't one thing; it is a braid of habits woven together. As eyes move, the mind predicts, discards, and stitches meaning on the fly. Most of this happens below awareness, but our experience of a page changes dramatically when attention is guided.
@@ -297,7 +220,7 @@ export default function App() {
 
   // Load settings and clips on mount
   useEffect(() => {
-    const s = loadSettings() || {};
+    const s = loadSettingsStorage() || {};
     const c: Partial<SettingsV1> = { ...s };
     const sc = <K extends keyof SettingsV1>(p: Partial<SettingsV1>, k: K, f: (v: SettingsV1[K]) => void) => {
       if (p[k] != null) f(p[k] as SettingsV1[K]);
@@ -313,9 +236,9 @@ export default function App() {
     sc(c, "drawerOpen", (v) => setDrawerOpen(!!v));
     
     // Load clips
-    const raw = loadClipsRaw();
+    const raw = loadClipsStorage();
     if (raw?.length) {
-      setClips(pruneClips(migrateClips(raw)));
+      setClips(clipRepository.prune(clipRepository.migrate(raw as unknown[])));
     }
     
     // Mark initial mount as complete
@@ -337,13 +260,13 @@ export default function App() {
       dark,
       drawerOpen,
     };
-    saveSettings(settings);
+    saveSettingsStorage(settings);
   }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen]);
   
   // Save clips when they change (but not on initial mount)
   useEffect(() => {
     if (isInitialMount.current) return;
-    saveClips(clips);
+    saveClipsStorage(clips);
   }, [clips]);
 
   /* ------- Auto-backup on unload ------- */
@@ -447,7 +370,7 @@ export default function App() {
     if (!file) return;
     setIsImporting(true);
     try {
-      if (file.size > MAX_IMPORT_BYTES) {
+      if (file.size > LIMITS.MAX_IMPORT_BYTES) {
         alert("That JSON is larger than 1MB. Please split it or trim some clips.");
         return;
       }
@@ -465,7 +388,7 @@ export default function App() {
         if (s.dark != null) setDark(!!s.dark);
         if (s.drawerOpen != null) setDrawerOpen(!!s.drawerOpen);
       }
-      if (data.clips) setClips(pruneClips(migrateClips(data.clips)));
+      if (data.clips) setClips(clipRepository.prune(clipRepository.migrate(data.clips)));
       alert("Import complete.");
     } catch (e: unknown) {
       const msg = (typeof e === "object" && e && "message" in e && typeof (e as { message?: unknown }).message === "string")
@@ -498,7 +421,7 @@ export default function App() {
       const empty = stripHtml(safe).trim().length === 0;
       if (editingClipId) {
         setClips((prev) =>
-          pruneClips(
+          clipRepository.prune(
             prev.map((c) =>
               c.id === editingClipId ? { ...c, noteHtml: empty ? undefined : safe } : c
             )
@@ -525,7 +448,7 @@ export default function App() {
         createdUtc: new Date().toISOString(),
         pinned: false,
       };
-      setClips((prev) => pruneClips([newClip, ...prev]));
+      setClips((prev) => clipRepository.prune([newClip, ...prev]));
       setPendingRange(null);
       setNoteOpen(false);
       setHoverRange(null);
@@ -786,7 +709,7 @@ export default function App() {
             )}
           </section>
 
-          {/* Clips dock + manager */
+          {/* Clips dock + manager */}
           <ClipManager
             clips={clips}
             expanded={clipsExpanded}
@@ -803,8 +726,8 @@ export default function App() {
             beginEditRange={beginEditRange}
             onEditNote={(id) => { setEditingClipId(id); setNoteOpen(true); }}
           />
-          /* Note modal */}
-        <NoteEditorModal
+          {/* Note modal */}
+          <NoteEditorModal
           open={noteOpen}
           draftKey={
             editingClipId ? `draft:clip:${editingClipId}` : pendingRange ? `draft:new` : undefined
