@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 import Upload from "lucide-react/dist/esm/icons/upload.js";
 import Download from "lucide-react/dist/esm/icons/download.js";
 import Loader2 from "lucide-react/dist/esm/icons/loader-2.js";
+import Timer from "lucide-react/dist/esm/icons/timer.js";
+import ListOrdered from "lucide-react/dist/esm/icons/list-ordered.js";
+import Rows from "lucide-react/dist/esm/icons/rows.js";
+import Focus from "lucide-react/dist/esm/icons/focus.js";
+import Contrast from "lucide-react/dist/esm/icons/contrast.js";
+import TypeIcon from "lucide-react/dist/esm/icons/type.js";
 
 type DrawerControlsProps = {
   open: boolean;
@@ -66,39 +72,60 @@ export function DrawerControls(props: DrawerControlsProps) {
       >
         <div className="text-sm font-semibold mb-2">Reader controls</div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-wps" className="text-xs text-sepia-700 mb-1">Tempo (words/sec): {wps.toFixed(1)}</label>
-          <input id="ctl-wps" type="range" min={0.5} max={3} step={0.1} value={wps} onChange={(e) => setWps(parseFloat(e.target.value))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-wps" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <Timer aria-hidden size={16} />
+            <span>Tempo (words/sec): {wps.toFixed(1)}</span>
+          </label>
+          <input id="ctl-wps" className="flex-1" type="range" min={0.5} max={3} step={0.1} value={wps} onChange={(e) => setWps(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-count" className="text-xs text-sepia-700 mb-1">Words shown: {count}</label>
-          <input id="ctl-count" type="range" min={1} max={7} step={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-count" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <ListOrdered aria-hidden size={16} />
+            <span>Words shown: {count}</span>
+          </label>
+          <input id="ctl-count" className="flex-1" type="range" min={1} max={7} step={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} />
         </div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-gap" className="text-xs text-sepia-700 mb-1">Text spacing (em): {gap.toFixed(2)}</label>
-          <input id="ctl-gap" type="range" min={0.2} max={0.8} step={0.01} value={gap} onChange={(e) => setGap(parseFloat(e.target.value))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-gap" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <Rows aria-hidden size={16} />
+            <span>Text spacing (em): {gap.toFixed(2)}</span>
+          </label>
+          <input id="ctl-gap" className="flex-1" type="range" min={0.2} max={0.8} step={0.01} value={gap} onChange={(e) => setGap(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-focus" className="text-xs text-sepia-700 mb-1">In-focus size: {focusScale.toFixed(2)}</label>
-          <input id="ctl-focus" type="range" min={1.0} max={1.6} step={0.01} value={focusScale} onChange={(e) => setFocusScale(parseFloat(e.target.value))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-focus" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <Focus aria-hidden size={16} />
+            <span>In-focus size: {focusScale.toFixed(2)}</span>
+          </label>
+          <input id="ctl-focus" className="flex-1" type="range" min={1.0} max={1.6} step={0.01} value={focusScale} onChange={(e) => setFocusScale(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-dimscale" className="text-xs text-sepia-700 mb-1">Out-of-focus size: {dimScale.toFixed(2)}</label>
-          <input id="ctl-dimscale" type="range" min={0.85} max={1.0} step={0.01} value={dimScale} onChange={(e) => setDimScale(parseFloat(e.target.value))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-dimscale" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <Contrast aria-hidden size={16} />
+            <span>Out-of-focus size: {dimScale.toFixed(2)}</span>
+          </label>
+          <input id="ctl-dimscale" className="flex-1" type="range" min={0.85} max={1.0} step={0.01} value={dimScale} onChange={(e) => setDimScale(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-dimblur" className="text-xs text-sepia-700 mb-1">Out-of-focus blur (px): {dimBlur.toFixed(2)}</label>
-          <input id="ctl-dimblur" type="range" min={0} max={2.5} step={0.1} value={dimBlur} onChange={(e) => setDimBlur(parseFloat(e.target.value))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-dimblur" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <Contrast aria-hidden size={16} />
+            <span>Out-of-focus blur (px): {dimBlur.toFixed(2)}</span>
+          </label>
+          <input id="ctl-dimblur" className="flex-1" type="range" min={0} max={2.5} step={0.1} value={dimBlur} onChange={(e) => setDimBlur(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3">
-          <label htmlFor="ctl-fontpx" className="text-xs text-sepia-700 mb-1">Text size (px): {fontPx}</label>
-          <input id="ctl-fontpx" type="range" min={16} max={28} step={1} value={fontPx} onChange={(e) => setFontPx(parseInt(e.target.value, 10))} />
+        <div className="my-3 flex items-center gap-3">
+          <label htmlFor="ctl-fontpx" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+            <TypeIcon aria-hidden size={16} />
+            <span>Text size (px): {fontPx}</span>
+          </label>
+          <input id="ctl-fontpx" className="flex-1" type="range" min={16} max={28} step={1} value={fontPx} onChange={(e) => setFontPx(parseInt(e.target.value, 10))} />
         </div>
 
         <div className="my-4 border-t border-sepia-200 pt-3">
