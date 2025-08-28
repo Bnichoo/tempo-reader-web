@@ -1,4 +1,4 @@
-const wordRe = /[\p{L}\p{N}]+(?:[�?T'_�?"-][\p{L}\p{N}]+)*/uy
+﻿const wordRe = /[\p{L}\p{N}]+(?:['’"_\-\u2010\u2011\u2013\u2014][\p{L}\p{N}]+)*/uy
 
 export function tokenizeImpl(text: string): string[] {
   const out: string[] = []

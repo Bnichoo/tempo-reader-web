@@ -310,6 +310,21 @@
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Subtle dark-mode background gradient (lightweight) */
+[data-theme="dark"] body,
+[data-theme="dark"] .min-h-screen {
+  background:
+    linear-gradient(180deg, #0f0f0e 0%, #131210 50%, #1a1714 100%),
+    radial-gradient(1000px 600px at 16% 0%, rgba(255, 80, 60, 0.06), transparent 60%);
+  transition: background 300ms ease;
+}
+[data-theme="dark"] body:hover,
+[data-theme="dark"] .min-h-screen:hover {
+  background:
+    linear-gradient(180deg, #0f0f0e 0%, #131210 50%, #1a1714 100%),
+    radial-gradient(1000px 600px at 84% 0%, rgba(255, 80, 60, 0.08), transparent 60%);
+}
+
 /* Empty state styling */
 .text-sepia-600 { color: var(--sepia-700); }
 .text-sepia-700 { color: var(--sepia-700); }
