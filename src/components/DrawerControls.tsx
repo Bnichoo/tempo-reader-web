@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 type DrawerControlsProps = {
   open: boolean;
@@ -115,4 +115,3 @@ export function DrawerControls(props: DrawerControlsProps) {
     </>
   );
 }
-

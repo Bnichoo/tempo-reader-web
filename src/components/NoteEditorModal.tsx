@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { sanitizeHTML } from "../lib/sanitize";
 
 type NoteEditorProps = {
@@ -304,4 +304,3 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
     </>
   );
 }
-
