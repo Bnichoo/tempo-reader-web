@@ -5,7 +5,7 @@ export function sanitizeHTML(dirty: string): string {
   // 1) Sanitize with a strict allowlist
   const clean = DOMPurify.sanitize(dirty, {
     ALLOWED_TAGS: ["b", "strong", "i", "em", "u", "a", "p", "ul", "ol", "li", "br"],
-    ALLOWED_ATTR: { a: ["href", "target", "rel"] },
+    ALLOWED_ATTR: ["href", "target", "rel"],
     FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "link", "meta"],
     KEEP_CONTENT: true,
   });

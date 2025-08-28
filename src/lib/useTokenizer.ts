@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { tokenizeSync } from "./tokenize"
+import { tokenizeImpl as tokenizeSync } from "./tokenizeImpl"
 
 export function useTokenizer(text: string) {
   const [tokens, setTokens] = useState<string[]>(() => tokenizeSync(text))
@@ -29,20 +29,28 @@ export function useTokenizer(text: string) {
           setTokens(tokens as string[])
         }
       }
-      const onErr = () => {
+      const onErr = (_e: Event) => {
         setTokens(tokenizeSync(text))
       }
-      w.addEventListener("message", onMsg as any, { once: true } as any)
-      w.addEventListener("error", onErr as any, { once: true } as any)
+      w.addEventListener("message", onMsg, { once: true })
+      w.addEventListener("error", onErr, { once: true })
       w.postMessage({ id, type: "tokenize", text })
       return () => {
-        w.removeEventListener("message", onMsg as any)
-        w.removeEventListener("error", onErr as any)
+        w.removeEventListener("message", onMsg)
+        w.removeEventListener("error", onErr)
       }
     } catch {
       setTokens(tokenizeSync(text))
     }
   }, [text, useWorker])
+
+  // Ensure worker is terminated when component unmounts
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate()
+      workerRef.current = null
+    }
+  }, [])
 
   return tokens
 }

@@ -30,6 +30,17 @@ const IO_ROOT_MARGIN = "800px";
 const isWhitespace = (t: string) => /^\s+$/.test(t);
 const isWord = (t: string) => /[\p{L}\p{N}]/u.test(t);
 
+// Find the nearest token index up the DOM tree from an element
+function findTok(root: HTMLElement | null, el: HTMLElement | null): number | null {
+  let cur: HTMLElement | null = el;
+  while (cur && cur !== root) {
+    const ti = Number(cur.dataset?.ti);
+    if (Number.isFinite(ti)) return ti;
+    cur = cur.parentElement as HTMLElement | null;
+  }
+  return null;
+}
+
 export const Reader: React.FC<Props> = ({
   tokens,
   focusStart,
@@ -133,16 +144,7 @@ export const Reader: React.FC<Props> = ({
         // also forward token range
         const startSpan = (r.startContainer.nodeType === 3 ? (r.startContainer.parentElement) : (r.startContainer as Element)) as HTMLElement | null;
         const endSpan   = (r.endContainer.nodeType === 3 ? (r.endContainer.parentElement) : (r.endContainer as Element)) as HTMLElement | null;
-        const findTok = (el: HTMLElement | null) => {
-          let cur: HTMLElement | null = el;
-          while (cur && cur !== root) {
-            const ti = Number((cur as any).dataset?.ti);
-            if (Number.isFinite(ti)) return ti;
-            cur = cur.parentElement;
-          }
-          return null;
-        };
-        const a = findTok(startSpan), b = findTok(endSpan);
+        const a = findTok(root, startSpan), b = findTok(root, endSpan);
         if (a != null && b != null) onSelectionChange({ start: Math.min(a,b), length: Math.abs(b - a) + 1 });
       }
     };
@@ -234,17 +236,7 @@ export const Reader: React.FC<Props> = ({
         const startSpan = (r.startContainer.nodeType === 3 ? (r.startContainer.parentElement) : (r.startContainer as Element)) as HTMLElement | null;
         const endSpan   = (r.endContainer.nodeType === 3 ? (r.endContainer.parentElement) : (r.endContainer as Element)) as HTMLElement | null;
 
-        const findTok = (el: HTMLElement | null) => {
-          let cur: HTMLElement | null = el;
-          while (cur && cur !== rootRef.current) {
-            const ti = Number((cur as any).dataset?.ti);
-            if (Number.isFinite(ti)) return ti;
-            cur = cur.parentElement;
-          }
-          return null;
-        };
-
-        const a = findTok(startSpan), b = findTok(endSpan);
+        const a = findTok(rootRef.current, startSpan), b = findTok(rootRef.current, endSpan);
         if (a != null && b != null) {
           const s = Math.min(a, b), e = Math.max(a, b);
           onAddClip({ start: s, length: e - s + 1 });
@@ -327,10 +319,7 @@ export const Reader: React.FC<Props> = ({
     onAidRangeChange(sentenceRangeAt(tokens, ti));
   };
 
-  // Click anywhere in the reader toggles play/pause (App listens for this)
-  const onClickToggle = () => {
-    window.dispatchEvent(new CustomEvent("tempo:toggle"));
-  };
+  // Click anywhere in the reader toggles play/pause is handled in App via events
 
   return (
     <div
