@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Undo2, Redo2, Link as LinkSvg, Unlink as UnlinkSvg, ClipboardPaste, X as CloseIcon } from "lucide-react";
 import { sanitizeHTML } from "../lib/sanitize";
 
 type NoteEditorProps = {
@@ -17,6 +18,8 @@ const UnlinkIcon = () => <span aria-hidden>✖</span>;
 
 const MAX_PASTE_BYTES = 200 * 1024;
 const textByteSize = (s: string) => new Blob([s]).size;
+// keep legacy icon component identifiers referenced to avoid TS6133 during transition
+void UndoIcon; void RedoIcon; void PasteIcon; void LinkIcon; void UnlinkIcon;
 
 export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel }: NoteEditorProps) {
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: 160, top: 120 });
@@ -28,6 +31,8 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
   const lastRangeRef = useRef<Range | null>(null);
   const histRef = useRef<{ stack: string[]; idx: number }>({ stack: [], idx: -1 });
   const histTimer = useRef<number | null>(null);
+  const prevFocusRef = useRef<HTMLElement | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   function withinTag(tag: string): boolean {
     const sel = document.getSelection();
@@ -213,16 +218,33 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
   const keepFocus = (e: React.MouseEvent) => e.preventDefault();
 
   useEffect(() => {
-    if (!open) return;
-    const saved = draftKey ? localStorage.getItem(draftKey) : null;
-    if (editorRef.current) {
-      if (saved) {
-        try { const parsed = JSON.parse(saved) as { value: string }; editorRef.current.innerHTML = parsed.value || ""; }
-        catch { editorRef.current.innerHTML = initialHtml || ""; }
-      } else editorRef.current.innerHTML = initialHtml || "";
-      fixupAllAnchors(editorRef.current); const html = editorRef.current.innerHTML; histRef.current = { stack: [html], idx: 0 };
-    }
-  }, [open, draftKey, initialHtml]);
+  if (!open) return;
+  prevFocusRef.current = (document.activeElement as HTMLElement) || null;
+  setTimeout(() => editorRef.current?.focus(), 0);
+  const onKeyDownDoc = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') { e.preventDefault(); onCancel(); return; }
+    if (e.key !== 'Tab') return;
+    const root = modalRef.current; if (!root) return;
+    const focusables = Array.from(root.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(el => !el.hasAttribute('disabled'));
+    if (focusables.length === 0) return;
+    const first = focusables[0]; const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+  };
+  document.addEventListener('keydown', onKeyDownDoc);
+
+  const saved = draftKey ? localStorage.getItem(draftKey) : null;
+  if (editorRef.current) {
+    if (saved) {
+      try { const parsed = JSON.parse(saved) as { value: string }; editorRef.current.innerHTML = parsed.value || ''; }
+      catch { editorRef.current.innerHTML = initialHtml || ''; }
+    } else editorRef.current.innerHTML = initialHtml || '';
+    fixupAllAnchors(editorRef.current); const html = editorRef.current.innerHTML; histRef.current = { stack: [html], idx: 0 };
+  }
+
+  return () => { document.removeEventListener('keydown', onKeyDownDoc); prevFocusRef.current?.focus?.(); };
+}, [open, draftKey, initialHtml]);
 
   useEffect(() => {
     if (!draftKey) return;
@@ -252,7 +274,7 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
     <>
       <div className="modal-backdrop" onClick={onCancel} />
       <div
-        className="modal-window"
+        className="modal-window" role="dialog" aria-modal="true" aria-labelledby="note-editor-title" ref={modalRef}
         style={{ left: pos.left, top: pos.top }}
         onMouseMove={(e) => {
           if (!dragging.current || !start.current) return;
@@ -264,32 +286,32 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
           className="modal-header"
           onMouseDown={(e) => { dragging.current = true; start.current = { x: e.clientX, y: e.clientY, left: pos.left, top: pos.top }; }}
         >
-          <div style={{ fontWeight: 600 }}>Add / Edit Note</div>
-          <button onClick={onCancel} title="Close">×</button>
+          <div id="note-editor-title" style={{ fontWeight: 600 }}>Add / Edit Note</div>
+          <button onClick={onCancel} title="Close" aria-label="Close note editor"><CloseIcon aria-hidden size={16} /></button>
         </div>
 
         <div className="modal-body" onKeyDown={onKeyDown}>
-          <div className="toolbar">
-            <button className={active.b ? "active" : ""} onMouseDown={keepFocus} onClick={() => exec("bold")} title="Bold (Ctrl/Cmd+B)"><b>B</b></button>
-            <button className={active.i ? "active" : ""} onMouseDown={keepFocus} onClick={() => exec("italic")} title="Italic (Ctrl/Cmd+I)"><i>I</i></button>
-            <button className={active.u ? "active" : ""} onMouseDown={keepFocus} onClick={() => exec("underline")} title="Underline (Ctrl/Cmd+U)"><u>U</u></button>
+          <div className="toolbar" role="toolbar" aria-label="Text formatting">
+            <button className={active.b ? "active" : ""} aria-pressed={active.b} onMouseDown={keepFocus} onClick={() => exec("bold")} title="Bold (Ctrl/Cmd+B)"><b>B</b></button>
+            <button className={active.i ? "active" : ""} aria-pressed={active.i} onMouseDown={keepFocus} onClick={() => exec("italic")} title="Italic (Ctrl/Cmd+I)"><i>I</i></button>
+            <button className={active.u ? "active" : ""} aria-pressed={active.u} onMouseDown={keepFocus} onClick={() => exec("underline")} title="Underline (Ctrl/Cmd+U)"><u>U</u></button>
             <span className="sep" />
-            <button onMouseDown={keepFocus} onClick={() => undo()} title="Undo (Ctrl/Cmd+Z)"><UndoIcon /> Undo</button>
-            <button onMouseDown={keepFocus} onClick={() => redo()} title="Redo (Ctrl+Y or Cmd/Ctrl+Shift+Z)"><RedoIcon /> Redo</button>
+            <button onMouseDown={keepFocus} onClick={() => undo()} title="Undo (Ctrl/Cmd+Z)"><Undo2 aria-hidden size={16} /> Undo</button>
+            <button onMouseDown={keepFocus} onClick={() => redo()} title="Redo (Ctrl+Y or Cmd/Ctrl+Shift+Z)"><Redo2 aria-hidden size={16} /> Redo</button>
             <span className="sep" />
             {active.link ? (
-              <button onMouseDown={keepFocus} onClick={() => unlinkSelection()} title="Remove link"><UnlinkIcon /> Unlink</button>
+              <button onMouseDown={keepFocus} onClick={() => unlinkSelection()} title="Remove link"><UnlinkSvg aria-hidden size={16} /> Unlink</button>
             ) : (
-              <button onMouseDown={keepFocus} onClick={() => createOrEditLink()} title="Add link…"><LinkIcon /> Link</button>
+              <button onMouseDown={keepFocus} onClick={() => createOrEditLink()} title="Add link…"><LinkSvg aria-hidden size={16} /> Link</button>
             )}
             <span className="sep" />
-            <button onMouseDown={keepFocus} onClick={() => pasteAsPlainText()} title="Paste as plain text"><PasteIcon /> Paste as text</button>
+            <button onMouseDown={keepFocus} onClick={() => pasteAsPlainText()} title="Paste as plain text"><ClipboardPaste aria-hidden size={16} /> Paste as text</button>
           </div>
 
           <div
             ref={editorRef}
             className="note-editor"
-            contentEditable
+            contentEditable role="textbox" aria-multiline="true" aria-label="Note editor"
             suppressContentEditableWarning
             onPaste={onPaste}
             onDrop={onDrop}
