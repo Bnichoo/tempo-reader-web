@@ -72,60 +72,60 @@ export function DrawerControls(props: DrawerControlsProps) {
       >
         <div className="text-sm font-semibold mb-2">Reader controls</div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-wps" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-wps" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <Timer aria-hidden size={16} />
             <span>Tempo (words/sec): {wps.toFixed(1)}</span>
           </label>
-          <input id="ctl-wps" className="flex-1" type="range" min={0.5} max={3} step={0.1} value={wps} onChange={(e) => setWps(parseFloat(e.target.value))} />
+          <input id="ctl-wps" className="w-full" type="range" min={0.5} max={3} step={0.1} value={wps} onChange={(e) => setWps(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-count" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-count" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <ListOrdered aria-hidden size={16} />
             <span>Words shown: {count}</span>
           </label>
-          <input id="ctl-count" className="flex-1" type="range" min={1} max={7} step={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} />
+          <input id="ctl-count" className="w-full" type="range" min={1} max={7} step={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} />
         </div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-gap" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-gap" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <Rows aria-hidden size={16} />
             <span>Text spacing (em): {gap.toFixed(2)}</span>
           </label>
-          <input id="ctl-gap" className="flex-1" type="range" min={0.2} max={0.8} step={0.01} value={gap} onChange={(e) => setGap(parseFloat(e.target.value))} />
+          <input id="ctl-gap" className="w-full" type="range" min={0.2} max={0.8} step={0.01} value={gap} onChange={(e) => setGap(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-focus" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-focus" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <Focus aria-hidden size={16} />
             <span>In-focus size: {focusScale.toFixed(2)}</span>
           </label>
-          <input id="ctl-focus" className="flex-1" type="range" min={1.0} max={1.6} step={0.01} value={focusScale} onChange={(e) => setFocusScale(parseFloat(e.target.value))} />
+          <input id="ctl-focus" className="w-full" type="range" min={1.0} max={1.6} step={0.01} value={focusScale} onChange={(e) => setFocusScale(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-dimscale" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-dimscale" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <Contrast aria-hidden size={16} />
             <span>Out-of-focus size: {dimScale.toFixed(2)}</span>
           </label>
-          <input id="ctl-dimscale" className="flex-1" type="range" min={0.85} max={1.0} step={0.01} value={dimScale} onChange={(e) => setDimScale(parseFloat(e.target.value))} />
+          <input id="ctl-dimscale" className="w-full" type="range" min={0.85} max={1.0} step={0.01} value={dimScale} onChange={(e) => setDimScale(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-dimblur" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-dimblur" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <Contrast aria-hidden size={16} />
             <span>Out-of-focus blur (px): {dimBlur.toFixed(2)}</span>
           </label>
-          <input id="ctl-dimblur" className="flex-1" type="range" min={0} max={2.5} step={0.1} value={dimBlur} onChange={(e) => setDimBlur(parseFloat(e.target.value))} />
+          <input id="ctl-dimblur" className="w-full" type="range" min={0} max={2.5} step={0.1} value={dimBlur} onChange={(e) => setDimBlur(parseFloat(e.target.value))} />
         </div>
 
-        <div className="my-3 flex items-center gap-3">
-          <label htmlFor="ctl-fontpx" className="w-56 shrink-0 flex items-center gap-2 text-sm text-sepia-700">
+        <div className="my-3">
+          <label htmlFor="ctl-fontpx" className="mb-1 flex items-center gap-2 text-sm text-sepia-700">
             <TypeIcon aria-hidden size={16} />
             <span>Text size (px): {fontPx}</span>
           </label>
-          <input id="ctl-fontpx" className="flex-1" type="range" min={16} max={28} step={1} value={fontPx} onChange={(e) => setFontPx(parseInt(e.target.value, 10))} />
+          <input id="ctl-fontpx" className="w-full" type="range" min={16} max={28} step={1} value={fontPx} onChange={(e) => setFontPx(parseInt(e.target.value, 10))} />
         </div>
 
         <div className="my-4 border-t border-sepia-200 pt-3">
