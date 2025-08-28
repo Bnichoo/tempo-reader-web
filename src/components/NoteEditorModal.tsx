@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Undo2, Redo2, Link as LinkSvg, Unlink as UnlinkSvg, ClipboardPaste, X as CloseIcon } from "lucide-react";
+import Undo2 from "lucide-react/dist/esm/icons/undo-2.js";
+import Redo2 from "lucide-react/dist/esm/icons/redo-2.js";
+import LinkSvg from "lucide-react/dist/esm/icons/link.js";
+import UnlinkSvg from "lucide-react/dist/esm/icons/unlink.js";
+import ClipboardPaste from "lucide-react/dist/esm/icons/clipboard-paste.js";
+import CloseIcon from "lucide-react/dist/esm/icons/x.js";
 import { sanitizeHTML } from "../lib/sanitize";
 
 type NoteEditorProps = {

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Upload, Download, Loader2 } from "lucide-react";
+import Upload from "lucide-react/dist/esm/icons/upload.js";
+import Download from "lucide-react/dist/esm/icons/download.js";
+import Loader2 from "lucide-react/dist/esm/icons/loader-2.js";
 
 type DrawerControlsProps = {
   open: boolean;
