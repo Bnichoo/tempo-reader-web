@@ -22,8 +22,8 @@
   --scale-dim:1.00;
   --dim-blur:.3px;
 
-  --hl-note: rgba(189,162,128,.28);
-  --hl-aid:  rgba(46,31,158,.12);
+  --hl-note: rgba(189, 162, 128, 0.28);
+  --hl-aid: rgba(46, 31, 158, 0.12);
 
   --header-offset: 64px;
 }
@@ -166,8 +166,12 @@
 .token.aid { background-color: var(--hl-aid);  border-radius:4px; }
 
 /* Selection tint */
-.reader-container ::selection{ background:var(--sepia-100); color:inherit; }
-.reader-container ::-moz-selection{ background:var(--sepia-100); color:inherit; }
+.reader-container ::selection{ background: rgba(189, 162, 128, 0.3); color: inherit; }
+.reader-container ::-moz-selection{ background: rgba(189, 162, 128, 0.3); color: inherit; }
+
+/* Dark mode selection - more visible */
+[data-theme="dark"] .reader-container ::selection{ background: rgba(183, 191, 255, 0.25); color: inherit; }
+[data-theme="dark"] .reader-container ::-moz-selection{ background: rgba(183, 191, 255, 0.25); color: inherit; }
 
 /* Hover "glide" neighbor effect */
 :root{ --glide-0:1; --glide-1:.8; --glide-2:.5; --glide-3:.35; --glide-4:.25; --glide-5:.18; }
@@ -199,10 +203,13 @@
 .ctx-bubble button:hover{ background:rgba(255,255,255,.95); }
 
 /* Clips panel */
-.clip-card{ position:relative; }
-.clip-actions{ position:absolute; right:12px; top:12px; display:flex; gap:8px; }
-.clip-actions button{ padding:6px 10px; border:1px solid var(--sepia-200); border-radius:8px; background:#fff; font-size:13px; }
-.clip-actions button:hover{ background:var(--sepia-50); }
+.clip-card{ 
+  position:relative;
+  transition: background-color 150ms ease;
+}
+.clip-card:hover {
+  background: var(--sepia-50);
+}
 
 /* Modal / Note Editor */
 .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.12); z-index:50; }
@@ -293,7 +300,21 @@
 /* Stable line height on the text container */
 .reader-container { line-height: 1.8; }
 
-/* Clip glow/blur so it can't bleed into neighboring lines */
+/* Loading animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Empty state styling */
+.text-sepia-600 { color: var(--sepia-700); }
+.text-sepia-700 { color: var(--sepia-700); }
+.text-sepia-800 { color: var(--sepia-800); }
+.border-dashed { border-style: dashed; }
 .token{
   overflow: hidden;
   vertical-align: baseline;

@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reader } from "./components/Reader";
 import { useTokenizer } from "./lib/useTokenizer";
+import DOMPurify from "dompurify";
 
 /* ---------------- Icons (simple placeholders) ---------------- */
 const Play = () => <span aria-hidden>▶</span>;
@@ -62,38 +63,34 @@ const isAlphaNum = (t: string) => /\p{L}|\p{N}/u.test(t);
 const isJoiner = (t: string) => t === "'" || t === "'" || t === "-" || t === "_";
 
 /* ---------------- Sanitizer ---------------- */
-const ALLOW_TAG = new Set(["b", "strong", "i", "em", "u", "a", "p", "ul", "ol", "li", "br"]);
-function sanitizeHTML(dirty: string): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(`<!doctype html><body>${dirty}`, "text/html");
-  function cleanNode(node: Node): Node | null {
-    if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent || "");
-    if (node.nodeType !== Node.ELEMENT_NODE) return null;
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (!ALLOW_TAG.has(tag)) return document.createTextNode(el.textContent || "");
-    const out = document.createElement(tag);
-    if (tag === "a") {
-      const href = el.getAttribute("href") || "";
-      if (/^https?:|^mailto:|^tel:/i.test(href)) out.setAttribute("href", href);
-      out.setAttribute("target", "_blank");
-      out.setAttribute("rel", "noopener noreferrer");
+// Configure DOMPurify for our use case
+const sanitizeHTML = (dirty: string): string => {
+  // Configure DOMPurify to be strict about URLs
+  const clean = DOMPurify.sanitize(dirty, {
+    ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 'a', 'p', 'ul', 'ol', 'li', 'br'],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+    ALLOW_DATA_ATTR: false,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):)/i,  // Only allow safe protocols
+    FORCE_BODY: true,
+    SAFE_FOR_TEMPLATES: true,
+    SANITIZE_DOM: true,
+    KEEP_CONTENT: true,
+    IN_PLACE: false,
+  });
+  
+  // Additional safety: ensure all links open safely
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = clean;
+  tempDiv.querySelectorAll('a').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    if (href && /^https?:\/\/|^mailto:|^tel:/i.test(href)) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
     }
-    for (const child of Array.from(el.childNodes)) {
-      const c = cleanNode(child);
-      if (c) out.appendChild(c);
-    }
-    return out;
-  }
-  const frag = document.createDocumentFragment();
-  for (const child of Array.from(doc.body.childNodes)) {
-    const c = cleanNode(child);
-    if (c) frag.appendChild(c);
-  }
-  const div = document.createElement("div");
-  div.appendChild(frag);
-  return div.innerHTML;
-}
+  });
+  
+  return tempDiv.innerHTML;
+};
 
 /* ---------------- Persistence ---------------- */
 type SettingsV1 = {
@@ -808,7 +805,10 @@ export default function App() {
     setCanInstall(false);
   };
 
-  /* ------- Reader text + tokenization ------- */
+  /* ------- Loading states ------- */
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [text, setText] = useState(SAMPLE_TEXT);
   const tokens = useTokenizer(text);
 
@@ -966,12 +966,11 @@ export default function App() {
 
   /* ------- Persist settings & clips ------- */
   const [clips, setClips] = useState<Clip[]>([]);
-  const [clipsLoaded, setClipsLoaded] = useState(false); // Track if initial load is done
+  const isInitialMount = useRef(true);
   const [hoverRange, setHoverRange] = useState<RangeT | null>(null);
-  const [aidRange, setAidRange] = useState<RangeT | null>(null);
-  const [aidAuto, setAidAuto] = useState(false);
   const [currentSelection, setCurrentSelection] = useState<RangeT | null>(null);
 
+  // Load settings and clips on mount
   useEffect(() => {
     const s = loadSettings() || {};
     const c = { ...s };
@@ -987,11 +986,20 @@ export default function App() {
     sc(c, "fontPx", (v) => setFontPx(clamp(Number(v), 16, 28)));
     sc(c, "dark", (v) => setDark(!!v));
     sc(c, "drawerOpen", (v) => setDrawerOpen(!!v));
+    
+    // Load clips
     const raw = loadClipsRaw();
-    if (raw?.length) setClips(pruneClips(migrateClips(raw)));
-    setClipsLoaded(true); // Mark as loaded after attempting to load
+    if (raw?.length) {
+      setClips(pruneClips(migrateClips(raw)));
+    }
+    
+    // Mark initial mount as complete
+    setTimeout(() => {
+      isInitialMount.current = false;
+    }, 0);
   }, []);
   
+  // Save settings when they change
   useEffect(() => {
     const settings: SettingsV1 = {
       wps,
@@ -1007,10 +1015,11 @@ export default function App() {
     saveSettings(settings);
   }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen]);
   
+  // Save clips when they change (but not on initial mount)
   useEffect(() => {
-    if (!clipsLoaded) return; // Don't save until initial load is done
+    if (isInitialMount.current) return;
     saveClips(clips);
-  }, [clips, clipsLoaded]);
+  }, [clips]);
 
   /* ------- Auto-backup on unload ------- */
   const backupRef = useRef<{ settings: SettingsV1; clips: Clip[] } | null>(null);
@@ -1070,38 +1079,53 @@ export default function App() {
 
   /* ------- Import / Export ------- */
   const onFile = useCallback(async (file: File) => {
-    if (file.size > 4 * 1024 * 1024) alert("This file is quite large (>4MB). It may feel slow.");
-    const ext = file.name.toLowerCase().split(".").pop();
-    const raw = await file.text();
-    let clean = raw;
-    if (ext === "html" || ext === "htm") {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(raw, "text/html");
-      clean = doc.body.innerText;
+    setIsProcessingFile(true);
+    try {
+      if (file.size > 4 * 1024 * 1024) {
+        alert("This file is quite large (>4MB). It may feel slow.");
+      }
+      const ext = file.name.toLowerCase().split(".").pop();
+      const raw = await file.text();
+      let clean = raw;
+      if (ext === "html" || ext === "htm") {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(raw, "text/html");
+        clean = doc.body.innerText;
+      }
+      setText(clean);
+    } finally {
+      setIsProcessingFile(false);
     }
-    setText(clean);
   }, []);
+  
   const doExport = () => {
-    const settings: SettingsV1 = {
-      wps,
-      count,
-      gap,
-      focusScale,
-      dimScale,
-      dimBlur,
-      fontPx,
-      dark,
-      drawerOpen,
-    };
-    exportDataFile({ settings, clips });
+    setIsExporting(true);
+    try {
+      const settings: SettingsV1 = {
+        wps,
+        count,
+        gap,
+        focusScale,
+        dimScale,
+        dimBlur,
+        fontPx,
+        dark,
+        drawerOpen,
+      };
+      exportDataFile({ settings, clips });
+    } finally {
+      setTimeout(() => setIsExporting(false), 500); // Brief visual feedback
+    }
   };
+  
   const onImportJson = async (file: File | null) => {
     if (!file) return;
-    if (file.size > MAX_IMPORT_BYTES) {
-      alert("That JSON is larger than 1MB. Please split it or trim some clips.");
-      return;
-    }
+    setIsImporting(true);
     try {
+      if (file.size > MAX_IMPORT_BYTES) {
+        alert("That JSON is larger than 1MB. Please split it or trim some clips.");
+        return;
+      }
       const text = await file.text();
       const data = parseImport(text);
       if (data.settings) {
@@ -1120,6 +1144,8 @@ export default function App() {
       alert("Import complete.");
     } catch (e: any) {
       alert("Import failed: " + (e?.message || String(e)));
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1153,7 +1179,6 @@ export default function App() {
         setEditingClipId(null);
         setNoteOpen(false);
         setHoverRange(null);
-        if (!aidAuto) setAidRange(null);
         return;
       }
       if (!pendingRange) {
@@ -1176,16 +1201,14 @@ export default function App() {
       setPendingRange(null);
       setNoteOpen(false);
       setHoverRange(null);
-      if (!aidAuto) setAidRange(null);
     },
-    [editingClipId, pendingRange, tokens, aidAuto]
+    [editingClipId, pendingRange, tokens]
   );
   const togglePin = (id: string) =>
     setClips((prev) => prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)));
   const deleteClip = (id: string) => {
     setClips((prev) => prev.filter((c) => c.id !== id));
     setHoverRange(null);
-    if (!aidAuto) setAidRange(null);
   };
   const moveClip = (id: string, dir: -1 | 1) =>
     setClips((prev) => {
@@ -1217,7 +1240,49 @@ export default function App() {
     setHoverRange(null);
   };
 
-  /* ------- Filtered clips ------- */
+  /* ------- Clip context menu ------- */
+  const [clipMenu, setClipMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    clipId: string | null;
+  }>({ open: false, x: 0, y: 0, clipId: null });
+
+  const openClipMenu = (e: React.MouseEvent, clipId: string) => {
+    e.preventDefault();
+    const menuHeight = 120; // Approximate height of menu with 3 items
+    const menuWidth = 180;
+    
+    let x = e.clientX;
+    let y = e.clientY;
+    
+    // Adjust if menu would go off bottom of viewport
+    if (y + menuHeight > window.innerHeight) {
+      y = Math.max(10, window.innerHeight - menuHeight - 10);
+    }
+    
+    // Adjust if menu would go off right
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10;
+    }
+    
+    // Ensure menu doesn't go off top
+    y = Math.max(10, y);
+    
+    setClipMenu({ open: true, x, y, clipId });
+  };
+
+  const closeClipMenu = () => {
+    setClipMenu({ open: false, x: 0, y: 0, clipId: null });
+  };
+
+  // Close menu on click outside
+  useEffect(() => {
+    if (!clipMenu.open) return;
+    const handleClick = () => closeClipMenu();
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, [clipMenu.open]);
   const [query, setQuery] = useState("");
   const filteredClips = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1248,10 +1313,48 @@ export default function App() {
     ["--scale-focus"]: String(focusScale),
     ["--scale-dim"]: String(dimScale),
     ["--dim-blur"]: `${dimBlur}px`,
-    paddingBottom: `${64 + 24}px`, // space for dock
+    paddingBottom: `${80}px`, // small space for dock
   };
 
-  /* ------- Keyboard shortcuts ------- */
+  /* ------- Global Escape key handler ------- */
+  const [clipsExpanded, setClipsExpanded] = useState(false);
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      
+      // Priority order: close deepest element first
+      if (noteOpen) {
+        setNoteOpen(false);
+        setEditingClipId(null);
+        setPendingRange(null);
+        return;
+      }
+      
+      if (clipMenu.open) {
+        closeClipMenu();
+        return;
+      }
+      
+      if (clipsExpanded) {
+        setClipsExpanded(false);
+        return;
+      }
+      
+      if (drawerOpen) {
+        setDrawerOpen(false);
+        return;
+      }
+      
+      // Clear text selection if nothing else to close
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) {
+        selection.removeAllRanges();
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [noteOpen, clipMenu.open, clipsExpanded, drawerOpen]);
   useEffect(() => {
     function isTypingTarget(el: EventTarget | null) {
       if (!(el instanceof HTMLElement)) return false;
@@ -1280,12 +1383,7 @@ export default function App() {
         setPlaying((p) => !p);
       } else if (e.key.toLowerCase() === "c") {
         e.preventDefault();
-        const tokenStart = focusTokenStart;
-        const range = currentSelection
-          ? currentSelection
-          : aidAuto
-          ? sentenceRangeAt(tokens, tokenStart)
-          : focusRange;
+        const range = currentSelection || focusRange;
         setPendingRange(range);
         setEditingClipId(null);
         setNoteOpen(true);
@@ -1293,16 +1391,13 @@ export default function App() {
         e.preventDefault();
         setPlaying(false);
         setClipsExpanded((v) => !v);
-      } else if (e.key === "Escape") {
-        setAidRange(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [noteOpen, currentSelection, aidAuto, tokens, focusRange, focusTokenStart]);
+  }, [noteOpen, currentSelection, tokens, focusRange, focusTokenStart]);
 
   /* ------- Clips dock + overlay drawer ------- */
-  const [clipsExpanded, setClipsExpanded] = useState(false);
   const dockH = 64;
   const topChips = useMemo(() => {
     const pinned = clips.filter((c) => c.pinned);
@@ -1363,11 +1458,12 @@ export default function App() {
 
           <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition cursor-pointer ml-2">
             <Upload />
-            <span className="text-sm">Open .txt / .html</span>
+            <span className="text-sm">{isProcessingFile ? "Processing..." : "Open .txt / .html"}</span>
             <input
               type="file"
               accept=".txt,.html,.htm,.md"
               className="hidden"
+              disabled={isProcessingFile}
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) onFile(f);
@@ -1536,39 +1632,26 @@ export default function App() {
         <div className="my-4 border-t border-sepia-200 pt-3">
           <div className="text-sm font-semibold mb-2">Data</div>
           <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition cursor-pointer">
-            ⤴ Import Settings
+            {isImporting ? "⏳" : "⤴"} {isImporting ? "Importing..." : "Import Settings"}
             <input
               type="file"
               accept="application/json"
               className="hidden"
+              disabled={isImporting}
               onChange={(e) => onImportJson(e.target.files?.[0] ?? null)}
             />
           </label>
           <button
-            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition"
+            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition disabled:opacity-50"
             onClick={doExport}
+            disabled={isExporting}
             title="Export clips + settings"
           >
-            ⤵ Export Settings
+            {isExporting ? "⏳" : "⤵"} {isExporting ? "Exporting..." : "Export Settings"}
           </button>
           <div className="text-xs text-sepia-700 mt-2">
             Auto-backup on close is always on.
           </div>
-        </div>
-
-        <div className="my-3 flex items-center gap-2">
-          <input
-            id="aidAuto"
-            type="checkbox"
-            checked={aidAuto}
-            onChange={(e) => {
-              setAidAuto(e.target.checked);
-              if (!e.target.checked) setAidRange(null);
-            }}
-          />
-          <label htmlFor="aidAuto" className="text-sm">
-            Sentence highlight (auto)
-          </label>
         </div>
 
         <div className="my-3 flex items-center gap-2">
@@ -1591,7 +1674,7 @@ export default function App() {
 
       {/* Main area */}
       <div className="page-wrap" style={{ ["--drawer-offset" as any]: `${drawerOffset}px` }}>
-        <main className="max-w-5xl mx-auto p-4 h-[calc(100vh-64px)] md:h-[calc(100vh-64px)] relative">
+        <main className="max-w-5xl mx-auto h-[calc(100vh-64px)] relative">
           <section
             className="reader-scroll w-full h-full rounded-2xl shadow-sm bg-white p-6 border border-sepia-200 overflow-y-auto scroll-smooth"
             style={{
@@ -1599,22 +1682,54 @@ export default function App() {
               filter: clipsExpanded ? "blur(0.2px)" : undefined,
             }}
           >
-            <Reader
-              tokens={tokens}
-              focusStart={focusRange.start}
-              focusLength={focusRange.length}
-              hoverRange={hoverRange}
-              aidRange={aidRange}
-              playing={playing}
-              onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
-              onAddClip={(range) => {
-                setPendingRange(range);
-                setEditingClipId(null);
-                setNoteOpen(true);
-              }}
-              onAidRangeChange={setAidRange}
-              onSelectionChange={setCurrentSelection}
-            />
+            {tokens.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="text-6xl mb-4 opacity-20">📖</div>
+                <h2 className="text-2xl font-semibold text-sepia-700 mb-2">No text loaded</h2>
+                <p className="text-sepia-600 mb-6">
+                  Open a .txt or .html file to start reading
+                </p>
+                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-sepia-300 bg-white/50 hover:bg-white transition cursor-pointer">
+                  <Upload />
+                  <span>Choose a file</span>
+                  <input
+                    type="file"
+                    accept=".txt,.html,.htm,.md"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onFile(f);
+                    }}
+                  />
+                </label>
+                <button
+                  className="mt-4 text-sm text-sepia-600 hover:text-sepia-800 underline"
+                  onClick={() => setText(SAMPLE_TEXT)}
+                >
+                  Load sample text
+                </button>
+              </div>
+            ) : isProcessingFile ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <div className="text-4xl mb-4 animate-pulse">⏳</div>
+                <p className="text-sepia-600">Processing file...</p>
+              </div>
+            ) : (
+              <Reader
+                tokens={tokens}
+                focusStart={focusRange.start}
+                focusLength={focusRange.length}
+                hoverRange={hoverRange}
+                playing={playing}
+                onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
+                onAddClip={(range) => {
+                  setPendingRange(range);
+                  setEditingClipId(null);
+                  setNoteOpen(true);
+                }}
+                onSelectionChange={setCurrentSelection}
+              />
+            )}
           </section>
 
           {/* ---- CLIPS DOCK (overlay, always visible at bottom) ---- */}
@@ -1747,66 +1862,68 @@ export default function App() {
                           {(query ? filteredClips : clips).map((c) => (
                             <li
                               key={c.id}
-                              className="clip-card p-3 rounded-xl border border-sepia-200 hover:bg-sepia-50"
+                              className="clip-card p-3 rounded-xl border border-sepia-200 hover:bg-sepia-50 cursor-pointer relative"
                               onMouseEnter={() =>
                                 setHoverRange({ start: c.start, length: c.length })
                               }
                               onMouseLeave={() => setHoverRange(null)}
+                              onContextMenu={(e) => openClipMenu(e, c.id)}
+                              onClick={() => {
+                                setWIndex(wordIndexFromToken(c.start));
+                                setClipsExpanded(false);
+                              }}
                             >
-                              <div className="clip-actions">
-                                <button onClick={() => togglePin(c.id)}>
-                                  {c.pinned ? "Unpin" : "Pin"}
-                                </button>
-                                <button onClick={() => moveClip(c.id, -1)}>▲</button>
-                                <button onClick={() => moveClip(c.id, 1)}>▼</button>
+                              {/* Quick action buttons */}
+                              <div className="absolute top-3 right-3 flex gap-2">
                                 <button
-                                  onClick={() => {
-                                    setWIndex(wordIndexFromToken(c.start));
-                                    setClipsExpanded(false);
+                                  className="p-1.5 rounded-lg border border-sepia-200 bg-white hover:bg-sepia-50 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    togglePin(c.id);
                                   }}
+                                  title={c.pinned ? "Unpin" : "Pin"}
                                 >
-                                  Go to text
-                                </button>
-                                <button onClick={() => beginEditRange(c.id)}>
-                                  Edit range
+                                  {c.pinned ? "📌" : "📍"}
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    setEditingClipId(c.id);
-                                    setNoteOpen(true);
+                                  className="p-1.5 rounded-lg border border-sepia-200 bg-white hover:bg-sepia-50 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm("Delete this clip?")) {
+                                      deleteClip(c.id);
+                                    }
                                   }}
+                                  title="Delete"
                                 >
-                                  {c.noteHtml ? "Edit note" : "Add note"}
+                                  🗑️
                                 </button>
-                                <button onClick={() => deleteClip(c.id)}>Delete</button>
                               </div>
 
-                              <div className="text-sm">
-                                <span className="text-sepia-700">Snippet:</span>{" "}
-                                <span className="font-medium">
-                                  {c.snippet.slice(0, 280)}
-                                  {c.snippet.length > 280 ? "…" : ""}
-                                </span>
-                                {c.pinned && (
-                                  <span className="ml-2 text-xs px-2 py-0.5 rounded-full border border-sepia-200">
-                                    Pinned
+                              <div className="text-sm pr-20">
+                                {c.noteHtml ? (
+                                  <>
+                                    <span className="font-medium">
+                                      <span
+                                        dangerouslySetInnerHTML={{
+                                          __html: sanitizeHTML(c.noteHtml),
+                                        }}
+                                      />
+                                    </span>
+                                    <div className="text-xs text-sepia-700 mt-1">
+                                      From: "{c.snippet.slice(0, 100)}
+                                      {c.snippet.length > 100 ? "…" : ""}"
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span className="font-medium">
+                                    {c.snippet.slice(0, 280)}
+                                    {c.snippet.length > 280 ? "…" : ""}
                                   </span>
                                 )}
                               </div>
 
-                              {c.noteHtml && (
-                                <div className="text-sm mt-2">
-                                  <span className="text-sepia-700">Note:</span>{" "}
-                                  <span
-                                    dangerouslySetInnerHTML={{
-                                      __html: sanitizeHTML(c.noteHtml),
-                                    }}
-                                  />
-                                </div>
-                              )}
-
                               <div className="text-xs text-sepia-700 mt-1">
-                                {new Date(c.createdUtc).toLocaleString()}
+                                {new Date(c.createdUtc).toLocaleString()} • Right-click for more
                               </div>
                             </li>
                           ))}
@@ -1819,6 +1936,37 @@ export default function App() {
             </>
           )}
         </main>
+
+        {/* Clip context menu */}
+        {clipMenu.open && clipMenu.clipId && (
+          <div 
+            className="ctx-bubble" 
+            style={{ left: clipMenu.x, top: clipMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button onClick={() => {
+              const c = clips.find(clip => clip.id === clipMenu.clipId);
+              if (c) {
+                setWIndex(wordIndexFromToken(c.start));
+                setClipsExpanded(false);
+              }
+              closeClipMenu();
+            }}>Go to text</button>
+            <button onClick={() => {
+              if (clipMenu.clipId) {
+                setEditingClipId(clipMenu.clipId);
+                setNoteOpen(true);
+              }
+              closeClipMenu();
+            }}>
+              {clips.find(c => c.id === clipMenu.clipId)?.noteHtml ? "Edit note" : "Add note"}
+            </button>
+            <button onClick={() => {
+              if (clipMenu.clipId) beginEditRange(clipMenu.clipId);
+              closeClipMenu();
+            }}>Edit range</button>
+          </div>
+        )}
 
         {/* Note modal */}
         <NoteEditorModal
