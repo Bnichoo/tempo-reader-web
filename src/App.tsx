@@ -1,5 +1,6 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reader } from "./components/Reader";
+import { useReducer } from "react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useTokenizer } from "./lib/useTokenizer";
 import { sanitizeHTML } from "./lib/sanitize";
@@ -23,15 +24,13 @@ import { useSearchIndex } from "./hooks/useSearchIndex";
 import UploadIcon from "lucide-react/dist/esm/icons/upload.js";
 import { hashDocId, docDisplayName } from "./lib/doc";
 import { recordRecentDoc } from "./lib/idb";
+import { uuid } from "./lib/uuid";
+import { notify } from "./lib/toast";
+import { logger } from "./lib/logger";
+import { initSessionState, sessionReducer } from "./state/session";
 
 /* ---------------- Utils & Types ---------------- */
-function uuid() {
-  try {
-    const { crypto } = globalThis as { crypto?: Crypto & { randomUUID?: () => string } };
-    if (crypto?.randomUUID) return crypto.randomUUID();
-  } catch {}
-  return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+// uuid moved to ./lib/uuid
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -180,13 +179,12 @@ export default function App() {
     return ans;
   };
 
-  /* ------- Playback ------- */
-  const [wIndex, setWIndex] = useState(0);
+  /* ------- Playback / Session (useReducer) ------- */
+  const [session, dispatch] = useReducer(sessionReducer, undefined, initSessionState);
+  const { wIndex, playing, searchStr, hoverRange, currentSelection, aidRange, clipsExpanded } = session;
   const { settings, setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen } = useSettings();
   const { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen } = settings;
-  const [playing, setPlaying] = useState(false);
-  // Quick jump input
-  const [searchStr, setSearchStr] = useState("");
+  // Quick jump input moved to reducer as searchStr
 
   /* ------- Reader styling vars ------- */
   // styling derived from settings
@@ -205,8 +203,8 @@ export default function App() {
 
   /* ------- Reader click/selection events ------- */
   useEffect(() => {
-    const onToggle = () => setPlaying((p) => !p);
-    const onPause = () => setPlaying(false);
+    const onToggle = () => dispatch({ type: "togglePlaying" });
+    const onPause = () => dispatch({ type: "pause" });
     window.addEventListener("tempo:toggle", onToggle);
     window.addEventListener("tempo:pause", onPause);
     return () => {
@@ -224,9 +222,7 @@ export default function App() {
     } catch {}
   }, [currentDocId, text]);
   const { clips, setClips, togglePin, deleteClip } = useClips(currentDocId);
-  const [hoverRange, setHoverRange] = useState<RangeT | null>(null);
-  const [currentSelection, setCurrentSelection] = useState<RangeT | null>(null);
-  const [aidRange, setAidRange] = useState<RangeT | null>(null);
+  // hoverRange, currentSelection, aidRange managed by reducer
 
   // Settings/clips persistence handled in hooks
 
@@ -237,6 +233,9 @@ export default function App() {
   }, K_BACKUP, 5000);
 
   /* ------- Smooth resume via hook ------- */
+  const setWIndex = useCallback((n: number) => {
+    dispatch({ type: "setWordIndex", index: n, maxWords: wordIdxData.count });
+  }, [wordIdxData.count]);
   useResumePosition(wordIdxData.count, wIndex, setWIndex, K_RESUME_WINDEX);
 
   /* ------- Ticker ------- */
@@ -252,7 +251,7 @@ export default function App() {
       if (acc >= 1) {
         const jump = Math.floor(acc) * count;
         acc = acc % 1;
-        setWIndex((i) => Math.min(i + jump, Math.max(0, wordIdxData.count - 1)));
+        dispatch({ type: "advanceWords", by: jump, maxWords: wordIdxData.count });
       }
       raf = requestAnimationFrame(step);
     };
@@ -265,9 +264,10 @@ export default function App() {
     setIsProcessingFile(true);
     try {
       if (file.size > 4 * 1024 * 1024) {
-        alert("This file is quite large (>4MB). It may feel slow.");
+        notify("Large file (>4MB). Rendering may feel slow.", "warn");
       }
       const ext = file.name.toLowerCase().split(".").pop();
+      const t0 = performance.now();
       const raw = await file.text();
       let clean = raw;
       if (ext === "html" || ext === "htm") {
@@ -276,6 +276,7 @@ export default function App() {
         clean = doc.body.innerText;
       }
       setText(clean);
+      logger.info("file:loaded", { bytes: file.size, ms: Math.round(performance.now() - t0) });
     } finally {
       setIsProcessingFile(false);
     }
@@ -308,7 +309,7 @@ export default function App() {
     setIsImporting(true);
     try {
       if (file.size > LIMITS.MAX_IMPORT_BYTES) {
-        alert("That JSON is larger than 1MB. Please split it or trim some clips.");
+        notify("JSON is larger than 1MB. Please split or trim.", "warn");
         return;
       }
       const text = await file.text();
@@ -326,12 +327,13 @@ export default function App() {
         if (s.drawerOpen != null) setDrawerOpen(!!s.drawerOpen);
       }
       if (data.clips) setClips(clipRepository.prune(clipRepository.migrate(data.clips)));
-      alert("Import complete.");
+      notify("Import complete.", "success");
     } catch (e: unknown) {
       const msg = (typeof e === "object" && e && "message" in e && typeof (e as { message?: unknown }).message === "string")
         ? ((e as { message?: unknown }).message as string)
         : String(e);
-      alert("Import failed: " + msg);
+      notify("Import failed: " + msg, "error");
+      logger.error("import:failed", e as unknown, { message: msg });
     } finally {
       setIsImporting(false);
     }
@@ -366,7 +368,7 @@ export default function App() {
         );
         setEditingClipId(null);
         setNoteOpen(false);
-        setHoverRange(null);
+        dispatch({ type: "setHoverRange", range: null });
         return;
       }
       if (!pendingRange) {
@@ -389,7 +391,7 @@ export default function App() {
       setClips((prev) => clipRepository.prune([newClip, ...prev]));
       setPendingRange(null);
       setNoteOpen(false);
-      setHoverRange(null);
+      dispatch({ type: "setHoverRange", range: null });
     },
     [editingClipId, pendingRange, tokens]
   );
@@ -397,7 +399,7 @@ export default function App() {
   const [editRangeForId, setEditRangeForId] = useState<string | null>(null);
   const beginEditRange = (id: string) => {
     setEditRangeForId(id);
-    setCurrentSelection(null);
+    dispatch({ type: "setSelection", range: null });
   };
   const applyEditedRange = () => {
     if (!editRangeForId || !currentSelection) return;
@@ -410,7 +412,7 @@ export default function App() {
       })
     );
     setEditRangeForId(null);
-    setHoverRange(null);
+    dispatch({ type: "setHoverRange", range: null });
   };
 
   /* ------- Reader CSS vars ------- */
@@ -432,7 +434,7 @@ export default function App() {
   };
 
   /* ------- Global Escape key handler ------- */
-  const [clipsExpanded, setClipsExpanded] = useState(false);
+  // clipsExpanded moved to reducer
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -446,7 +448,7 @@ export default function App() {
       }
       
       if (clipsExpanded) {
-        setClipsExpanded(false);
+        dispatch({ type: "setClipsExpanded", value: false });
         return;
       }
       
@@ -490,7 +492,7 @@ export default function App() {
       }
       if (e.code === "Space") {
         e.preventDefault();
-        setPlaying((p) => !p);
+        dispatch({ type: "togglePlaying" });
       } else if (e.key.toLowerCase() === "c") {
         e.preventDefault();
         const range = currentSelection || focusRange;
@@ -499,8 +501,8 @@ export default function App() {
         setNoteOpen(true);
       } else if ((e.altKey || e.metaKey) && e.key.toLowerCase() === "c") {
         e.preventDefault();
-        setPlaying(false);
-        setClipsExpanded((v) => !v);
+        dispatch({ type: "setPlaying", value: false });
+        dispatch({ type: "toggleClipsExpanded" });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -518,10 +520,10 @@ export default function App() {
         isProcessingFile={isProcessingFile}
         onFile={(f) => onFile(f)}
         playing={playing}
-        setPlaying={(v) => setPlaying(v)}
+        setPlaying={(v) => dispatch({ type: "setPlaying", value: v })}
         disablePlay={wordIdxData.count === 0}
         search={searchStr}
-        setSearch={setSearchStr}
+        setSearch={(v) => dispatch({ type: "setSearch", value: v })}
       />
 
       {/* Left Controls Drawer */}
@@ -551,7 +553,36 @@ export default function App() {
       )}
 
       {/* Main area */}
-      <div className="page-wrap" style={{ ["--drawer-offset"]: `${drawerOffset}px` } as React.CSSProperties}>
+      <div
+        className="page-wrap"
+        style={{ ["--drawer-offset"]: `${drawerOffset}px` } as React.CSSProperties}
+        onPointerDown={(e) => {
+          if (e.pointerType !== 'touch') return;
+          const x = e.clientX, y = e.clientY;
+          ;(window as any).__tr_swipe = { x, y, t: performance.now(), dx: 0, dy: 0, startX: x };
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType !== 'touch') return;
+          const st = (window as any).__tr_swipe; if (!st) return;
+          st.dx = e.clientX - st.x; st.dy = e.clientY - st.y;
+        }}
+        onPointerUp={(e) => {
+          if (e.pointerType !== 'touch') return;
+          const st = (window as any).__tr_swipe; (window as any).__tr_swipe = null;
+          if (!st) return;
+          const absY = Math.abs(st.dy);
+          const absX = Math.abs(st.dx);
+          // Edge open: start near left edge and swipe right
+          if (!drawerOpen && st.startX < 24 && st.dx > 60 && absY < 40) {
+            setDrawerOpen(true);
+            return;
+          }
+          // Close when drawer open: swipe left from near drawer area
+          if (drawerOpen && absX > 60 && st.dx < -60 && absY < 40) {
+            setDrawerOpen(false);
+          }
+        }}
+      >
         <main className="max-w-5xl mx-auto h-[calc(100vh-64px)] relative">
           <ProgressBar current={wIndex} total={wordIdxData.count} />
           <section
@@ -608,8 +639,8 @@ export default function App() {
                     setEditingClipId(null);
                     setNoteOpen(true);
                   }}
-                  onAidRangeChange={setAidRange}
-                  onSelectionChange={setCurrentSelection}
+                  onAidRangeChange={(r) => dispatch({ type: "setAidRange", range: r })}
+                  onSelectionChange={(r) => dispatch({ type: "setSelection", range: r })}
                 />
               </ErrorBoundary>
             )}
@@ -620,10 +651,10 @@ export default function App() {
           <ClipManager
             clips={clips}
             expanded={clipsExpanded}
-            setExpanded={setClipsExpanded}
+            setExpanded={(v) => dispatch({ type: "setClipsExpanded", value: v })}
             drawerOffset={drawerOffset}
             onGoToToken={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
-            setHoverRange={setHoverRange}
+            setHoverRange={(r) => dispatch({ type: "setHoverRange", range: r })}
             togglePin={togglePin}
             deleteClip={deleteClip}
             editRangeForId={editRangeForId}
@@ -654,8 +685,8 @@ export default function App() {
         open={searchStr.trim().length >= 2}
         query={searchStr}
         hits={searchHits}
-        onClose={() => setSearchStr("")}
-        onGoToToken={(ti) => setWIndex(wordIndexFromToken(ti))}
+        onClose={() => { dispatch({ type: "setSearch", value: "" }); dispatch({ type: "setAidRange", range: null }); }}
+        onGoToToken={(ti) => { setWIndex(wordIndexFromToken(ti)); dispatch({ type: "setAidRange", range: { start: ti, length: 1 } }); }}
         drawerOffsetLeft={drawerOffset}
       />
     </>

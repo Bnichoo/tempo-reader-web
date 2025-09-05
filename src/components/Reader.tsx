@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { LIMITS } from "../lib/constants";
+import type { RangeT } from "../types";
+import { sentenceRangeAt } from "../lib/sentences";
+import Token from "./reader/Token";
+import ContextMenu from "./reader/ContextMenu";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
-type RangeT = { start: number; length: number };
 type Props = {
   tokens: string[];
   focusStart: number;
@@ -14,22 +17,6 @@ type Props = {
   onAidRangeChange: (range: RangeT | null) => void;
   onSelectionChange: (range: RangeT | null) => void;
 };
-
-function sentenceRangeAt(tokens: string[], i: number): RangeT {
-  const isBoundary = (s: string) => /[.!?]/.test(s);
-  let s = 0;
-  for (let k = i - 1; k >= 0; k--) { if (isBoundary(tokens[k])) { s = k + 1; break; } }
-  while (s < tokens.length && /^\s+$/.test(tokens[s])) s++;
-  let e = tokens.length - 1;
-  for (let k = i; k < tokens.length; k++) { if (isBoundary(tokens[k])) { e = k; break; } }
-  return { start: s, length: Math.max(1, e - s + 1) };
-}
-
-const BLOCK_SIZE = LIMITS.BLOCK_SIZE;
-const IO_ROOT_MARGIN = LIMITS.IO_ROOT_MARGIN;
-
-const isWhitespace = (t: string) => /^\s+$/.test(t);
-const isWord = (t: string) => /[\p{L}\p{N}]/u.test(t);
 
 // Find the nearest token index up the DOM tree from an element
 function findTok(root: HTMLElement | null, el: HTMLElement | null): number | null {
@@ -55,8 +42,10 @@ export const Reader: React.FC<Props> = ({
   onSelectionChange,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  const BLOCK_SIZE = 600;
 
-  // blocks for virtualization
+  // Blocks for virtualization (same size as previous LIMITS.BLOCK_SIZE)
   const blocks = useMemo(() => {
     const arr: { idx: number; start: number; end: number; key: string }[] = [];
     for (let i = 0, bi = 0; i < tokens.length; i += BLOCK_SIZE, bi++) {
@@ -65,63 +54,24 @@ export const Reader: React.FC<Props> = ({
     return arr;
   }, [tokens]);
 
-  // virtualization state
-  const [visible, setVisible] = useState<Set<number>>(() => new Set());
-  const [heights, setHeights] = useState<Map<number, number>>(() => new Map());
-  const avgRef = useRef<{ tokens: number; px: number }>({ tokens: 1, px: 24 });
-  const wrappersRef = useRef<Map<number, HTMLDivElement>>(new Map());
-  const ioRef = useRef<IntersectionObserver | null>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: blocks.length,
+    getScrollElement: () => (rootRef.current?.closest(".reader-scroll") as HTMLElement | null),
+    estimateSize: () => 400,
+    overscan: 3,
+    measureElement: (el) => (el as HTMLElement).offsetHeight,
+  });
 
-  // estimator at component scope
-  const estimateHeight = (bi: number) => {
-    const known = heights.get(bi);
-    if (known) return known;
-    const size = blocks[bi] ? (blocks[bi].end - blocks[bi].start + 1) : BLOCK_SIZE;
-    const pxPerTok = avgRef.current.px / Math.max(1, avgRef.current.tokens);
-    return Math.max(16, Math.round(size * pxPerTok));
-  };
-
-  // observe wrappers
+  // Re-measure the block that contains the focus token (and neighbors)
   useEffect(() => {
-    if (ioRef.current) ioRef.current.disconnect();
-    const io = new IntersectionObserver(
-      (entries) => {
-        setVisible(prev => {
-          const next = new Set(prev);
-          for (const e of entries) {
-            const bi = Number((e.target as HTMLElement).dataset.block);
-            if (!Number.isFinite(bi)) continue;
-            if (e.isIntersecting) next.add(bi); else next.delete(bi);
-          }
-          return next;
-        });
-      },
-      { root: null, rootMargin: IO_ROOT_MARGIN, threshold: 0 }
-    );
-    ioRef.current = io;
-    wrappersRef.current.forEach(el => io.observe(el));
-    return () => io.disconnect();
-  }, [blocks.length]);
-
-  // refine height estimates
-  useEffect(() => {
-    const m = new Map(heights);
-    let changed = false;
-    visible.forEach((bi) => {
-      const wrap = wrappersRef.current.get(bi);
-      if (!wrap) return;
-      const h = Math.max(16, wrap.offsetHeight);
-      const known = heights.get(bi);
-      if (!known || Math.abs(known - h) > 1) {
-        m.set(bi, h);
-        changed = true;
-        const size = blocks[bi] ? (blocks[bi].end - blocks[bi].start + 1) : BLOCK_SIZE;
-        avgRef.current.tokens += size;
-        avgRef.current.px += h;
-      }
-    });
-    if (changed) setHeights(m);
-  }, [visible, heights, blocks]);
+    if (!blocks.length) return;
+    const bi = Math.max(0, Math.min(Math.floor(focusStart / BLOCK_SIZE), blocks.length - 1));
+    for (const idx of [bi - 1, bi, bi + 1]) {
+      if (idx < 0 || idx >= blocks.length) continue;
+      const el = rowRefs.current.get(idx) as HTMLElement | null;
+      if (el) rowVirtualizer.measureElement(el);
+    }
+  }, [focusStart, focusLength, blocks.length]);
 
   // ---------- Selection tracking + pause ----------
   const [hasSelection, setHasSelection] = useState(false);
@@ -221,13 +171,12 @@ export const Reader: React.FC<Props> = ({
       const damping = fontPx >= 26 ? 0.35 : 0.5; // slower approach at large fonts
       container.scrollTo({ top: current + delta * damping, behavior: "smooth" });
     }
-  }, [focusStart, focusLength, visible, hasSelection]);
+  }, [focusStart, focusLength, hasSelection]);
 
-  // ---------- Context menu (unchanged) ----------
+  // ---------- Context menu ----------
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; ti: number | null }>({
     open: false, x: 0, y: 0, ti: null
   });
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     const el = (e.target as HTMLElement);
@@ -236,13 +185,6 @@ export const Reader: React.FC<Props> = ({
     setMenu({ open: true, x: e.clientX, y: e.clientY, ti: Number.isFinite(ti as number) ? (ti as number) : null });
   };
   const closeMenu = () => setMenu({ open: false, x: 0, y: 0, ti: null });
-  useEffect(() => {
-    if (!menu.open) return;
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
-    window.addEventListener('keydown', onEsc);
-    const t = window.setTimeout(() => { const b = menuRef.current?.querySelector('button') as HTMLButtonElement | null; b?.focus(); }, 0);
-    return () => { window.removeEventListener('keydown', onEsc); window.clearTimeout(t); };
-  }, [menu.open]);
 
   const addClipFromSelectionOrWord = () => {
     const sel = document.getSelection();
@@ -292,45 +234,19 @@ export const Reader: React.FC<Props> = ({
     const inFocus = ti >= focusStart && ti <= focusEnd;
     const inAid   = ti >= aidStart && ti <= aidEnd;
     const inClip  = ti >= hoverStart && ti <= hoverEnd;
-
-    let cls = "tok token";
-    if (inFocus) cls += " focus"; else cls += " dim";
-    if (inAid)   cls += " aid";
-    if (inClip)  cls += " clipmark";
-    if (isWhitespace(t)) cls += " ws";
-    if (isWord(t))       cls += " word";
-
-    // inline style to ensure sliders take effect (uses CSS vars from parent)
-    const style: React.CSSProperties = inFocus ? styleFocus : styleDim;
-
-    // first-letter tint
-    let content: React.ReactNode = t;
-    if (isWord(t)) {
-      const parts = Array.from(t);
-      const first = parts[0] ?? "";
-      const rest  = parts.slice(1).join("");
-      content = (<><span className="initial">{first}</span>{rest}</>);
-    }
-
     return (
-      <span
+      <Token
         key={ti}
-        className={cls}
-        data-ti={ti}
-        onClick={() => onJump(ti)}
-        style={style}
-      >
-        {content}
-      </span>
+        ti={ti}
+        text={t}
+        inFocus={inFocus}
+        inAid={inAid}
+        inClip={inClip}
+        styleFocus={styleFocus}
+        styleDim={styleDim}
+        onJump={onJump}
+      />
     );
-  };
-
-  const setWrapper = (blockIdx: number, el: HTMLDivElement | null) => {
-    const map = wrappersRef.current;
-    const prev = map.get(blockIdx);
-    if (prev && ioRef.current) ioRef.current.unobserve(prev);
-    if (el) { map.set(blockIdx, el); if (ioRef.current) ioRef.current.observe(el); }
-    else { map.delete(blockIdx); }
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
@@ -343,6 +259,50 @@ export const Reader: React.FC<Props> = ({
     onAidRangeChange(sentenceRangeAt(tokens, ti));
   };
 
+  // ---------- Touch gestures: long-press context + double-tap sentence ----------
+  const pressRef = useRef<{t: number; x: number; y: number; moved: boolean; ti: number | null; timer: number | null} | null>(null);
+  const lastTapRef = useRef<{t: number; x: number; y: number} | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    const el = (e.target as HTMLElement);
+    const tiAttr = el?.closest('.tok')?.getAttribute('data-ti');
+    const ti = tiAttr ? Number(tiAttr) : null;
+    const data = { t: performance.now(), x: e.clientX, y: e.clientY, moved: false, ti: Number.isFinite(ti as number) ? (ti as number) : null, timer: null as number | null };
+    data.timer = window.setTimeout(() => {
+      if (!pressRef.current || pressRef.current.moved) return;
+      const pr = pressRef.current;
+      setMenu({ open: true, x: pr!.x, y: pr!.y, ti: pr!.ti });
+    }, 450);
+    pressRef.current = data;
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    const pr = pressRef.current; if (!pr) return;
+    if (pr.moved) return;
+    const dx = e.clientX - pr.x, dy = e.clientY - pr.y;
+    if (Math.hypot(dx, dy) > 10) { pr.moved = true; if (pr.timer) { window.clearTimeout(pr.timer); pr.timer = null; } }
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    const pr = pressRef.current;
+    if (pr?.timer) { window.clearTimeout(pr.timer); pr.timer = null; }
+    const now = performance.now();
+    const prev = lastTapRef.current;
+    if (prev && (now - prev.t) < 300 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 24) {
+      const el = (e.target as HTMLElement);
+      const tiAttr = el?.closest('.tok')?.getAttribute('data-ti');
+      const ti = tiAttr ? Number(tiAttr) : null;
+      if (Number.isFinite(ti as number)) onAidRangeChange(sentenceRangeAt(tokens, ti as number));
+      lastTapRef.current = null;
+    } else {
+      lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+    }
+    pressRef.current = null;
+  };
+
   // Click anywhere in the reader toggles play/pause is handled in App via events
 
   return (
@@ -352,6 +312,9 @@ export const Reader: React.FC<Props> = ({
       onContextMenu={onContextMenu}
       onKeyDownCapture={(e) => { if (e.key === 'Escape') { e.stopPropagation(); } }}
       onDoubleClick={onDoubleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       onClickCapture={(e) => {
 		// If we’re playing, a click pauses and stops the click from bubbling to tokens (so no jump).
 		if (playing) {
@@ -360,56 +323,48 @@ export const Reader: React.FC<Props> = ({
 		}
 	  }}
     >
-      {blocks.map((b) => {
-        const isVisible = visible.has(b.idx);
-        const style: React.CSSProperties = {
-          minHeight: isVisible ? undefined : estimateHeight(b.idx),
-        };
-        const renderRange = (start: number, end: number) => {
-          const nodes: React.ReactNode[] = [];
-          for (let ti = start; ti <= end; ti++) nodes.push(renderToken(ti));
-          return nodes;
-        };
+      {(() => {
+        const vis = rowVirtualizer.getVirtualItems();
+        const paddingTop = vis.length > 0 ? vis[0].start : 0;
+        const paddingBottom = vis.length > 0 ? rowVirtualizer.getTotalSize() - vis[vis.length - 1].end : 0;
         return (
-          <div
-            key={b.key}
-            data-block={b.idx}
-            ref={(el) => setWrapper(b.idx, el)}
-            style={style}
-          >
-            {isVisible && (
-              <span>
-                {renderRange(b.start, b.end)}
-              </span>
-            )}
+          <div style={{ paddingTop, paddingBottom }}>
+            {vis.map((vi) => {
+              const b = blocks[vi.index];
+              const renderRange = (start: number, end: number) => {
+                const nodes: React.ReactNode[] = [];
+                for (let ti = start; ti <= end; ti++) nodes.push(renderToken(ti));
+                return nodes;
+              };
+              return (
+                <div
+                  key={vi.key}
+                  data-block={b.idx}
+                  ref={(el) => {
+                    rowRefs.current.set(vi.index, el);
+                    if (el) rowVirtualizer.measureElement(el);
+                  }}
+                >
+                  <span>
+                    {renderRange(b.start, b.end)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         );
-      })}
+      })()}
 
-      {menu.open && (
-        <div
-          ref={menuRef}
-          className="ctx-bubble"
-          style={{ left: menu.x, top: menu.y }}
-          role="menu"
-          aria-label="Reader actions"
-          onKeyDown={(e) => {
-            const buttons = Array.from(menuRef.current?.querySelectorAll('button') || []) as HTMLButtonElement[];
-            const idx = buttons.findIndex(b => b === document.activeElement);
-            if (e.key === 'ArrowDown') { e.preventDefault(); const next = buttons[(idx + 1 + buttons.length) % buttons.length]; next?.focus(); }
-            else if (e.key === 'ArrowUp') { e.preventDefault(); const prev = buttons[(idx - 1 + buttons.length) % buttons.length]; prev?.focus(); }
-            else if (e.key === 'Home') { e.preventDefault(); buttons[0]?.focus(); }
-            else if (e.key === 'End') { e.preventDefault(); buttons[buttons.length - 1]?.focus(); }
-            else if (e.key === 'Tab') { e.preventDefault(); const dir = e.shiftKey ? -1 : 1; const nxt = buttons[(idx + dir + buttons.length) % buttons.length]; nxt?.focus(); }
-          }}
-        >
-          <button role="menuitem" onClick={goHere}>Go to text</button>
-          <button role="menuitem" onClick={setSentenceHere}>Select sentence</button>
-          <button role="menuitem" onClick={clearSentence}>Clear sentence</button>
-          <button role="menuitem" onClick={addClipFromSelectionOrWord}>Add clip</button>
-          <button role="menuitem" onClick={closeMenu}>Close</button>
-        </div>
-      )}
+      <ContextMenu
+        open={menu.open}
+        x={menu.x}
+        y={menu.y}
+        onGoHere={goHere}
+        onSetSentence={setSentenceHere}
+        onClearSentence={clearSentence}
+        onAddClip={addClipFromSelectionOrWord}
+        onClose={closeMenu}
+      />
     </div>
   );
 };
