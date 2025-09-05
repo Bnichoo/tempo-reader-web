@@ -8,6 +8,7 @@ export type Clip = {
   noteHtml?: string;
   pinned?: boolean;
   createdUtc: string;
+  docId?: string;
 };
 
 export type SettingsV1 = {
@@ -21,4 +22,3 @@ export type SettingsV1 = {
   dark: boolean;
   drawerOpen: boolean;
 };
-

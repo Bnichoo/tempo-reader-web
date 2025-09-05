@@ -85,6 +85,13 @@
   background: var(--button-hover) !important; 
 }
 
+/* Export bar background in both themes */
+.export-bar { background: var(--panel-bg) !important; }
+
+/* Search highlight for results */
+.search-hl { font-weight: 700; text-decoration: underline; }
+[data-theme="dark"] .search-hl { text-decoration-color: var(--reader-fg); }
+
 /* Dock chip scrolling container */
 .dock-chips-container {
   display: flex;

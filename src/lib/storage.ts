@@ -1,7 +1,10 @@
 import type { SettingsV1, Clip } from "../types";
+import { clipRepository } from "./clipUtils";
+import { clipsBulkPut, clipsGetAll, clipsCount } from "./idb";
 
 const K_SETTINGS = "tr:settings:v1";
-const K_CLIPS = "tr:clips:v1";
+const K_CLIPS = "tr:clips:v1"; // legacy localStorage key (pre-IDB)
+const K_CLIPS_MIGRATED = "tr:clips:migrated:v1";
 
 export function loadSettings(): Partial<SettingsV1> | null {
   try {
@@ -24,25 +27,61 @@ export function saveSettings(s: SettingsV1) {
   }, 150);
 }
 
-export function loadClips(): Clip[] {
-  try {
-    const v = JSON.parse(localStorage.getItem(K_CLIPS) || "[]");
-    return Array.isArray(v) ? (v as Clip[]) : [];
-  } catch {
-    return [] as Clip[];
-  }
-}
+// --- Clips: IndexedDB (with migration) ---
 
 let tClips: number | null = null;
 let lastClips: Clip[] | null = null;
-export function saveClips(list: Clip[]) {
+
+async function migrateClipsIfNeeded(): Promise<void> {
+  try {
+    // Avoid re-migrating if flagged
+    const flagged = localStorage.getItem(K_CLIPS_MIGRATED) === "1";
+    const idbHas = (await clipsCount()) > 0;
+    if (flagged || idbHas) return;
+    const raw = JSON.parse(localStorage.getItem(K_CLIPS) || "null");
+    if (!Array.isArray(raw) || raw.length === 0) {
+      localStorage.setItem(K_CLIPS_MIGRATED, "1");
+      return;
+    }
+    const migrated = clipRepository.migrate(raw as unknown[]);
+    await clipsBulkPut(migrated);
+    // Keep legacy data as a backup, but set a flag to avoid repeat
+    localStorage.setItem(K_CLIPS_MIGRATED, "1");
+  } catch {
+    // swallow; fall back to IDB being empty
+  }
+}
+
+export async function loadClips(): Promise<Clip[]> {
+  await migrateClipsIfNeeded();
+  try {
+    return await clipsGetAll();
+  } catch {
+    // Fallback: legacy localStorage (should not happen often)
+    try {
+      const v = JSON.parse(localStorage.getItem(K_CLIPS) || "[]");
+      return Array.isArray(v) ? (v as Clip[]) : [];
+    } catch {
+      return [] as Clip[];
+    }
+  }
+}
+
+export async function saveClips(list: Clip[]): Promise<void> {
   lastClips = list;
   if (tClips) clearTimeout(tClips);
-  tClips = window.setTimeout(() => {
-    try {
-      localStorage.setItem(K_CLIPS, JSON.stringify(lastClips));
-    } catch {}
-  }, 150);
+  await new Promise<void>((resolve) => {
+    tClips = window.setTimeout(async () => {
+      try {
+        if (lastClips) await clipsBulkPut(lastClips);
+      } catch {
+        // As a last resort, mirror to localStorage
+        try { localStorage.setItem(K_CLIPS, JSON.stringify(lastClips || [])); } catch {}
+      } finally {
+        resolve();
+      }
+    }, 150);
+  });
 }
 
 /** Export clips + settings as a downloadable JSON file. */
@@ -71,7 +110,8 @@ function flushPending() {
     clearTimeout(tSettings); tSettings = null;
   }
   if (tClips && lastClips) {
-    try { localStorage.setItem(K_CLIPS, JSON.stringify(lastClips)); } catch {}
+    // Fire-and-forget; no await
+    try { void clipsBulkPut(lastClips); } catch {}
     clearTimeout(tClips); tClips = null;
   }
 }

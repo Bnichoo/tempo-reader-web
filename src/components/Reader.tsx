@@ -202,17 +202,24 @@ export const Reader: React.FC<Props> = ({
     const focusEl = root.querySelector(`.tok[data-ti="${focusStart}"]`) as HTMLElement | null;
     if (!focusEl) return;
 
-    // keep focused token around 40% of panel height
-    const desiredRatio = 0.4;
+    // keep focused token near a font-aware target
+    // adapt position & threshold to font size to reduce jitter at large sizes
+    const fontPx = parseFloat(getComputedStyle(container).fontSize || "20");
+    let desiredRatio = 0.4; // baseline
+    if (fontPx >= 26) desiredRatio = 0.35;
+    else if (fontPx <= 18) desiredRatio = 0.45;
     const target = Math.max(0, focusEl.offsetTop - container.clientHeight * desiredRatio);
     const current = container.scrollTop;
     const delta = target - current;
 
-    const linePx = parseFloat(getComputedStyle(container).lineHeight || "24");
-    const threshold = isFinite(linePx) ? linePx * 0.9 : 20;
+    const linePx = parseFloat(getComputedStyle(container).lineHeight || String(fontPx * 1.2));
+    // scale threshold with font so big fonts don't trigger micro scrolls
+    const scale = fontPx >= 26 ? 1.6 : fontPx >= 22 ? 1.2 : 0.9;
+    const threshold = isFinite(linePx) ? linePx * scale : Math.max(20, fontPx);
 
     if (Math.abs(delta) > threshold) {
-      container.scrollTo({ top: current + delta * 0.5, behavior: "smooth" });
+      const damping = fontPx >= 26 ? 0.35 : 0.5; // slower approach at large fonts
+      container.scrollTo({ top: current + delta * damping, behavior: "smooth" });
     }
   }, [focusStart, focusLength, visible, hasSelection]);
 
@@ -220,6 +227,7 @@ export const Reader: React.FC<Props> = ({
   const [menu, setMenu] = useState<{ open: boolean; x: number; y: number; ti: number | null }>({
     open: false, x: 0, y: 0, ti: null
   });
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     const el = (e.target as HTMLElement);
@@ -228,6 +236,13 @@ export const Reader: React.FC<Props> = ({
     setMenu({ open: true, x: e.clientX, y: e.clientY, ti: Number.isFinite(ti as number) ? (ti as number) : null });
   };
   const closeMenu = () => setMenu({ open: false, x: 0, y: 0, ti: null });
+  useEffect(() => {
+    if (!menu.open) return;
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
+    window.addEventListener('keydown', onEsc);
+    const t = window.setTimeout(() => { const b = menuRef.current?.querySelector('button') as HTMLButtonElement | null; b?.focus(); }, 0);
+    return () => { window.removeEventListener('keydown', onEsc); window.clearTimeout(t); };
+  }, [menu.open]);
 
   const addClipFromSelectionOrWord = () => {
     const sel = document.getSelection();
@@ -335,6 +350,7 @@ export const Reader: React.FC<Props> = ({
       ref={rootRef}
       className="reader-container"
       onContextMenu={onContextMenu}
+      onKeyDownCapture={(e) => { if (e.key === 'Escape') { e.stopPropagation(); } }}
       onDoubleClick={onDoubleClick}
       onClickCapture={(e) => {
 		// If we’re playing, a click pauses and stops the click from bubbling to tokens (so no jump).
@@ -371,12 +387,27 @@ export const Reader: React.FC<Props> = ({
       })}
 
       {menu.open && (
-        <div className="ctx-bubble" style={{ left: menu.x, top: menu.y }}>
-          <button onClick={goHere}>Go to text</button>
-          <button onClick={setSentenceHere}>Select sentence</button>
-          <button onClick={clearSentence}>Clear sentence</button>
-          <button onClick={addClipFromSelectionOrWord}>Add clip</button>
-          <button onClick={closeMenu}>Close</button>
+        <div
+          ref={menuRef}
+          className="ctx-bubble"
+          style={{ left: menu.x, top: menu.y }}
+          role="menu"
+          aria-label="Reader actions"
+          onKeyDown={(e) => {
+            const buttons = Array.from(menuRef.current?.querySelectorAll('button') || []) as HTMLButtonElement[];
+            const idx = buttons.findIndex(b => b === document.activeElement);
+            if (e.key === 'ArrowDown') { e.preventDefault(); const next = buttons[(idx + 1 + buttons.length) % buttons.length]; next?.focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); const prev = buttons[(idx - 1 + buttons.length) % buttons.length]; prev?.focus(); }
+            else if (e.key === 'Home') { e.preventDefault(); buttons[0]?.focus(); }
+            else if (e.key === 'End') { e.preventDefault(); buttons[buttons.length - 1]?.focus(); }
+            else if (e.key === 'Tab') { e.preventDefault(); const dir = e.shiftKey ? -1 : 1; const nxt = buttons[(idx + dir + buttons.length) % buttons.length]; nxt?.focus(); }
+          }}
+        >
+          <button role="menuitem" onClick={goHere}>Go to text</button>
+          <button role="menuitem" onClick={setSentenceHere}>Select sentence</button>
+          <button role="menuitem" onClick={clearSentence}>Clear sentence</button>
+          <button role="menuitem" onClick={addClipFromSelectionOrWord}>Add clip</button>
+          <button role="menuitem" onClick={closeMenu}>Close</button>
         </div>
       )}
     </div>

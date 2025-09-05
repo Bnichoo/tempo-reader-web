@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Reader } from "./components/Reader";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useTokenizer } from "./lib/useTokenizer";
 import { sanitizeHTML } from "./lib/sanitize";
 import type { Clip, RangeT, SettingsV1 } from "./types";
@@ -8,19 +9,20 @@ import { DrawerControls } from "./components/DrawerControls";
 import { ClipManager } from "./components/ClipManager";
 import { LIMITS } from "./lib/constants";
 import { clipRepository } from "./lib/clipUtils";
-import {
-  loadSettings as loadSettingsStorage,
-  saveSettings as saveSettingsStorage,
-  loadClips as loadClipsStorage,
-  saveClips as saveClipsStorage,
-  exportDataFile,
-  parseImport,
-} from "./lib/storage";
+// exports handled inside Clips panel options
+import { useSettings } from "./hooks/useSettings";
+import { useClips } from "./hooks/useClips";
+import { useResumePosition } from "./hooks/useResumePosition";
+import { useBackup } from "./hooks/useBackup";
+import { exportDataFile, parseImport } from "./lib/storage";
 // SVG icons (lucide-react) to replace previous corrupted glyphs
-import BookOpenTextIcon from "lucide-react/dist/esm/icons/book-open-text.js";
+import { HeaderBar } from "./components/HeaderBar";
+import { ProgressBar } from "./components/ProgressBar";
+import { SearchDrawer } from "./components/SearchDrawer";
+import { useSearchIndex } from "./hooks/useSearchIndex";
 import UploadIcon from "lucide-react/dist/esm/icons/upload.js";
-import PlayIcon from "lucide-react/dist/esm/icons/play.js";
-import PauseIcon from "lucide-react/dist/esm/icons/pause.js";
+import { hashDocId, docDisplayName } from "./lib/doc";
+import { recordRecentDoc } from "./lib/idb";
 
 /* ---------------- Utils & Types ---------------- */
 function uuid() {
@@ -45,6 +47,7 @@ const isJoiner = (t: string) => t === "'" || t === "'" || t === "-" || t === "_"
 
 /* ---------------- Persistence ---------------- */
 const K_BACKUP = "tr:backup:v1";
+const K_RESUME_WINDEX = "tr:wIndex:v1";
 function clampSettings(s: Partial<SettingsV1>): Partial<SettingsV1> {
   const r: Partial<SettingsV1> = { ...s };
   const c = (v: number, min: number, max: number) => clamp(Number(v), min, max);
@@ -94,11 +97,21 @@ export default function App() {
     window.addEventListener("appinstalled", onInstalled);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
+    // Global ESC suppression for inputs/contenteditable
+    const stopEscInInputs = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return;
+      const ae = document.activeElement as HTMLElement | null;
+      const tag = (ae?.tagName || '').toLowerCase();
+      const isEditable = !!(ae && (ae.isContentEditable || tag === 'input' || tag === 'textarea'));
+      if (isEditable) ev.stopPropagation();
+    };
+    window.addEventListener('keydown', stopEscInInputs, true);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBIP);
       window.removeEventListener("appinstalled", onInstalled);
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
+      window.removeEventListener('keydown', stopEscInInputs, true);
     };
   }, []);
   const doInstall = async () => {
@@ -169,35 +182,26 @@ export default function App() {
 
   /* ------- Playback ------- */
   const [wIndex, setWIndex] = useState(0);
-  const [count, setCount] = useState(3);
-  const [wps, setWps] = useState(1.5);
+  const { settings, setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen } = useSettings();
+  const { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen } = settings;
   const [playing, setPlaying] = useState(false);
+  // Quick jump input
+  const [searchStr, setSearchStr] = useState("");
 
   /* ------- Reader styling vars ------- */
-  const [gap, setGap] = useState(0.2);
-  const [focusScale, setFocusScale] = useState(1.18);
-  const [dimScale, setDimScale] = useState(0.96);
-  const [dimBlur, setDimBlur] = useState(0.8);
-  const [fontPx, setFontPx] = useState(20);
+  // styling derived from settings
 
   /* ------- Theme ------- */
-  const [dark, setDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem("theme:dark");
-    if (saved != null) return saved === "1";
-    return (
-      window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-    );
-  });
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-    localStorage.setItem("theme:dark", dark ? "1" : "0");
-  }, [dark]);
+  // theme handled in useSettings
 
   /* ------- Left controls drawer ------- */
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // drawerOpen handled in useSettings
   const drawerWidth = 320,
     drawerGap = 12;
   const drawerOffset = drawerOpen ? drawerWidth + drawerGap : 0;
+
+  const searchIndex = useSearchIndex(tokens);
+  const searchHits = useMemo(() => searchIndex.search(searchStr, 200), [searchIndex, searchStr]);
 
   /* ------- Reader click/selection events ------- */
   useEffect(() => {
@@ -211,98 +215,29 @@ export default function App() {
     };
   }, []);
 
-  /* ------- Persist settings & clips ------- */
-  const [clips, setClips] = useState<Clip[]>([]);
-  const isInitialMount = useRef(true);
+  /* ------- Clips ------- */
+  const currentDocId = useMemo(() => hashDocId(text), [text]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("tr:lastDocId", currentDocId);
+      void recordRecentDoc(currentDocId, docDisplayName(text));
+    } catch {}
+  }, [currentDocId, text]);
+  const { clips, setClips, togglePin, deleteClip } = useClips(currentDocId);
   const [hoverRange, setHoverRange] = useState<RangeT | null>(null);
   const [currentSelection, setCurrentSelection] = useState<RangeT | null>(null);
   const [aidRange, setAidRange] = useState<RangeT | null>(null);
 
-  // Load settings and clips on mount
-  useEffect(() => {
-    const s = loadSettingsStorage() || {};
-    const c: Partial<SettingsV1> = { ...s };
-    const sc = <K extends keyof SettingsV1>(p: Partial<SettingsV1>, k: K, f: (v: SettingsV1[K]) => void) => {
-      if (p[k] != null) f(p[k] as SettingsV1[K]);
-    };
-    sc(c, "wps", (v) => setWps(clamp(Number(v), 0.5, 3)));
-    sc(c, "count", (v) => setCount(clamp(Number(v), 1, 7)));
-    sc(c, "gap", (v) => setGap(clamp(Number(v), 0.2, 0.8)));
-    sc(c, "focusScale", (v) => setFocusScale(clamp(Number(v), 1.0, 1.6)));
-    sc(c, "dimScale", (v) => setDimScale(clamp(Number(v), 0.85, 1.0)));
-    sc(c, "dimBlur", (v) => setDimBlur(clamp(Number(v), 0, 2.5)));
-    sc(c, "fontPx", (v) => setFontPx(clamp(Number(v), 16, 28)));
-    sc(c, "dark", (v) => setDark(!!v));
-    sc(c, "drawerOpen", (v) => setDrawerOpen(!!v));
-    
-    // Load clips
-    const raw = loadClipsStorage();
-    if (raw?.length) {
-      setClips(clipRepository.prune(clipRepository.migrate(raw as unknown[])));
-    }
-    
-    // Mark initial mount as complete
-    setTimeout(() => {
-      isInitialMount.current = false;
-    }, 0);
-  }, []);
-  
-  // Save settings when they change
-  useEffect(() => {
-    const settings: SettingsV1 = {
-      wps,
-      count,
-      gap,
-      focusScale,
-      dimScale,
-      dimBlur,
-      fontPx,
-      dark,
-      drawerOpen,
-    };
-    saveSettingsStorage(settings);
-  }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen]);
-  
-  // Save clips when they change (but not on initial mount)
-  useEffect(() => {
-    if (isInitialMount.current) return;
-    saveClipsStorage(clips);
-  }, [clips]);
+  // Settings/clips persistence handled in hooks
 
-  /* ------- Auto-backup on unload ------- */
-  const backupRef = useRef<{ settings: SettingsV1; clips: Clip[] } | null>(null);
-  useEffect(() => {
-    backupRef.current = {
-      settings: { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen },
-      clips,
-    };
-  }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, clips]);
-  useEffect(() => {
-    const doBackup = () => {
-      try {
-        const data = backupRef.current;
-        if (!data) return;
-        localStorage.setItem(K_BACKUP, JSON.stringify({ ts: Date.now(), ...data }));
-      } catch {}
-    };
-    const onBeforeUnload = () => {
-      doBackup();
-    };
-    const onPageHide = () => {
-      doBackup();
-    };
-    const onVis = () => {
-      if (document.visibilityState === "hidden") doBackup();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    window.addEventListener("pagehide", onPageHide);
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      window.removeEventListener("pagehide", onPageHide);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, []);
+  /* ------- Auto-backup via hook ------- */
+  useBackup({
+    settings: { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen },
+    clips,
+  }, K_BACKUP, 5000);
+
+  /* ------- Smooth resume via hook ------- */
+  useResumePosition(wordIdxData.count, wIndex, setWIndex, K_RESUME_WINDEX);
 
   /* ------- Ticker ------- */
   useEffect(() => {
@@ -365,6 +300,8 @@ export default function App() {
       setTimeout(() => setIsExporting(false), 500); // Brief visual feedback
     }
   };
+
+  // Export handled from Clips panel
   
   const onImportJson = async (file: File | null) => {
     if (!file) return;
@@ -447,6 +384,7 @@ export default function App() {
         noteHtml: empty ? undefined : safe,
         createdUtc: new Date().toISOString(),
         pinned: false,
+        docId: currentDocId,
       };
       setClips((prev) => clipRepository.prune([newClip, ...prev]));
       setPendingRange(null);
@@ -455,13 +393,7 @@ export default function App() {
     },
     [editingClipId, pendingRange, tokens]
   );
-  const togglePin = (id: string) =>
-    setClips((prev) => prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c)));
-  const deleteClip = (id: string) => {
-    setClips((prev) => prev.filter((c) => c.id !== id));
-    setHoverRange(null);
-  };
-  // moveClip removed (unused)
+  // togglePin/deleteClip provided by useClips
   const [editRangeForId, setEditRangeForId] = useState<string | null>(null);
   const beginEditRange = (id: string) => {
     setEditRangeForId(id);
@@ -579,56 +511,18 @@ export default function App() {
   return (
     <>
       {/* Header */}
-      <header className="sticky top-0 z-20 backdrop-blur bg-sepia-50/80 border-b border-sepia-200">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-          <BookOpenTextIcon aria-hidden size={18} />
-          <h1 className="text-xl font-semibold mr-3">Tempo Reader (Web)</h1>
-
-          <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition cursor-pointer ml-2">
-            <UploadIcon aria-hidden size={16} />
-            <span className="text-sm">{isProcessingFile ? "Processing..." : "Open .txt / .html"}</span>
-            <input
-              type="file"
-              accept=".txt,.html,.htm,.md"
-              className="hidden"
-              disabled={isProcessingFile}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onFile(f);
-              }}
-            />
-          </label>
-
-          <div className="ml-auto flex items-center gap-2">
-            {offline && (
-              <span className="px-2 py-1 rounded-lg bg-amber-200 text-amber-900 text-xs border border-amber-300">
-                Offline
-              </span>
-            )}
-            {canInstall && (
-              <button
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-sepia-300 bg-white/70 hover:bg-white"
-                onClick={doInstall}
-                title="Install this app">
-                Install
-              </button>
-            )}
-            <button
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sepia-800 text-white hover:bg-sepia-700 active:scale-[.99] transition disabled:opacity-50"
-              onClick={() => setPlaying((p) => !p)}
-              disabled={wordIdxData.count === 0}
-              title="Space"
-            >
-              {playing ? (
-                <PauseIcon aria-hidden size={16} />
-              ) : (
-                <PlayIcon aria-hidden size={16} />
-              )}
-              <span className="text-sm">{playing ? "Pause" : "Play"}</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <HeaderBar
+        offline={offline}
+        canInstall={canInstall}
+        doInstall={doInstall}
+        isProcessingFile={isProcessingFile}
+        onFile={(f) => onFile(f)}
+        playing={playing}
+        setPlaying={(v) => setPlaying(v)}
+        disablePlay={wordIdxData.count === 0}
+        search={searchStr}
+        setSearch={setSearchStr}
+      />
 
       {/* Left Controls Drawer */}
       <DrawerControls
@@ -647,9 +541,19 @@ export default function App() {
         isExporting={isExporting} doExport={doExport}
       />
 
+      {/* Click outside main content to close left drawer */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-20"
+          style={{ left: `${drawerOffset}px` }}
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
       {/* Main area */}
       <div className="page-wrap" style={{ ["--drawer-offset"]: `${drawerOffset}px` } as React.CSSProperties}>
         <main className="max-w-5xl mx-auto h-[calc(100vh-64px)] relative">
+          <ProgressBar current={wIndex} total={wordIdxData.count} />
           <section
             className="reader-scroll w-full h-full rounded-2xl shadow-sm bg-white p-6 border border-sepia-200 overflow-y-auto scroll-smooth"
             style={{
@@ -690,26 +594,29 @@ export default function App() {
                 <p className="text-sepia-600">Processing file...</p>
               </div>
             ) : (
-              <Reader
-                tokens={tokens}
-                focusStart={focusRange.start}
-                focusLength={focusRange.length}
-                hoverRange={hoverRange}
-                aidRange={aidRange}
-                playing={playing}
-                onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
-                onAddClip={(range) => {
-                  setPendingRange(range);
-                  setEditingClipId(null);
-                  setNoteOpen(true);
-                }}
-                onAidRangeChange={setAidRange}
-                onSelectionChange={setCurrentSelection}
-              />
+              <ErrorBoundary>
+                <Reader
+                  tokens={tokens}
+                  focusStart={focusRange.start}
+                  focusLength={focusRange.length}
+                  hoverRange={hoverRange}
+                  aidRange={aidRange}
+                  playing={playing}
+                  onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
+                  onAddClip={(range) => {
+                    setPendingRange(range);
+                    setEditingClipId(null);
+                    setNoteOpen(true);
+                  }}
+                  onAidRangeChange={setAidRange}
+                  onSelectionChange={setCurrentSelection}
+                />
+              </ErrorBoundary>
             )}
           </section>
 
           {/* Clips dock + manager */}
+          <ErrorBoundary>
           <ClipManager
             clips={clips}
             expanded={clipsExpanded}
@@ -726,6 +633,7 @@ export default function App() {
             beginEditRange={beginEditRange}
             onEditNote={(id) => { setEditingClipId(id); setNoteOpen(true); }}
           />
+          </ErrorBoundary>
           {/* Note modal */}
           <NoteEditorModal
           open={noteOpen}
@@ -742,6 +650,14 @@ export default function App() {
         />
         </main>
       </div>
+      <SearchDrawer
+        open={searchStr.trim().length >= 2}
+        query={searchStr}
+        hits={searchHits}
+        onClose={() => setSearchStr("")}
+        onGoToToken={(ti) => setWIndex(wordIndexFromToken(ti))}
+        drawerOffsetLeft={drawerOffset}
+      />
     </>
   );
 }

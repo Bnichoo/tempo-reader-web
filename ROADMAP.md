@@ -63,3 +63,30 @@ type Clip = {
   createdAt: number;
   updatedAt: number;
 };
+
+
+---
+
+## Phase 2 — Completed (summary)
+
+- Document‑scoped clips (per‑text docId) with IndexedDB index
+- Export: direct PDF download (jsPDF), filename editing; removed print flow
+- Search: header search + right drawer; bold highlights and ellipses in results
+- Storage: periodic backup, persistent storage request, usage indicator
+- Accessibility: keyboard navigation in clips and context menus; Esc suppression in inputs; click‑outside to close drawers
+- Error boundaries around Reader and Clips with simple recovery
+
+## Phase 3 — Next
+
+- Clip management
+  - Drag & drop reorder (keyboard‑accessible)
+  - Bulk operations (select, pin/unpin, delete, export selected)
+  - Tags and filtering; promote sort controls
+- Reader UX
+  - Option to disable click‑to‑toggle
+  - Continue follow tuning/data fencing as needed
+- Performance
+  - Workerized tokenization
+  - Opportunistic chunking for very long texts
+- Documents
+  - Recent documents list; optional friendly names

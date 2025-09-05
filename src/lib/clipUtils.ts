@@ -1,4 +1,5 @@
 import type { Clip } from "../types";
+import { LIMITS } from "./constants";
 import { sanitizeHTML } from "./sanitize";
 
 /** Repository-style helpers for clips operations. */
@@ -24,13 +25,14 @@ export const clipRepository = {
       const noteHtml = typeof obj.noteHtml === "string" && obj.noteHtml
         ? sanitizeHTML(obj.noteHtml as string)
         : undefined;
-      return { id, start, length, snippet, noteHtml, pinned, createdUtc } as Clip;
+      const docId = typeof obj.docId === "string" && obj.docId ? (obj.docId as string) : (localStorage.getItem("tr:lastDocId") || "legacy");
+      return { id, start, length, snippet, noteHtml, pinned, createdUtc, docId } as Clip;
     });
   },
 
   prune(clips: Clip[]): Clip[] {
-    // Caller controls the cap; default to 500 if omitted
-    const MAX = 500;
+    // Cap based on shared limits
+    const MAX = LIMITS.MAX_CLIPS;
     if (clips.length <= MAX) return clips;
     const pinned = clips.filter((c) => c.pinned);
     const rest = clips
