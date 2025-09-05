@@ -186,6 +186,21 @@ export default function App() {
   const { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen } = settings;
   // Quick jump input moved to reducer as searchStr
 
+  // ------- Analytics: playing changes -------
+  useEffect(() => {
+    try { logger.info("reader:playing", { playing }); } catch {}
+  }, [playing]);
+
+  // ------- Settings wrappers (analytics) -------
+  const onSetWps = (v: number) => { try { logger.info("settings:wps", { v }); } catch {} setWps(v); };
+  const onSetCount = (v: number) => { try { logger.info("settings:count", { v }); } catch {} setCount(v); };
+  const onSetGap = (v: number) => { try { logger.info("settings:gap", { v }); } catch {} setGap(v); };
+  const onSetFocusScale = (v: number) => { try { logger.info("settings:focusScale", { v }); } catch {} setFocusScale(v); };
+  const onSetDimScale = (v: number) => { try { logger.info("settings:dimScale", { v }); } catch {} setDimScale(v); };
+  const onSetDimBlur = (v: number) => { try { logger.info("settings:dimBlur", { v }); } catch {} setDimBlur(v); };
+  const onSetFontPx = (v: number) => { try { logger.info("settings:fontPx", { v }); } catch {} setFontPx(v); };
+  const onSetDark = (v: boolean) => { try { logger.info("settings:dark", { v }); } catch {} setDark(v); };
+
   /* ------- Reader styling vars ------- */
   // styling derived from settings
 
@@ -520,7 +535,7 @@ export default function App() {
         isProcessingFile={isProcessingFile}
         onFile={(f) => onFile(f)}
         playing={playing}
-        setPlaying={(v) => dispatch({ type: "setPlaying", value: v })}
+        setPlaying={(v) => { try { logger.info("reader:setPlaying", { v }); } catch {} dispatch({ type: "setPlaying", value: v }); }}
         disablePlay={wordIdxData.count === 0}
         search={searchStr}
         setSearch={(v) => dispatch({ type: "setSearch", value: v })}
@@ -531,14 +546,14 @@ export default function App() {
         open={drawerOpen}
         setOpen={setDrawerOpen}
         offset={drawerOffset}
-        wps={wps} setWps={setWps}
-        count={count} setCount={setCount}
-        gap={gap} setGap={setGap}
-        focusScale={focusScale} setFocusScale={setFocusScale}
-        dimScale={dimScale} setDimScale={setDimScale}
-        dimBlur={dimBlur} setDimBlur={setDimBlur}
-        fontPx={fontPx} setFontPx={setFontPx}
-        dark={dark} setDark={setDark}
+        wps={wps} setWps={onSetWps}
+        count={count} setCount={onSetCount}
+        gap={gap} setGap={onSetGap}
+        focusScale={focusScale} setFocusScale={onSetFocusScale}
+        dimScale={dimScale} setDimScale={onSetDimScale}
+        dimBlur={dimBlur} setDimBlur={onSetDimBlur}
+        fontPx={fontPx} setFontPx={onSetFontPx}
+        dark={dark} setDark={onSetDark}
         isImporting={isImporting} onImportJson={onImportJson}
         isExporting={isExporting} doExport={doExport}
       />
@@ -633,7 +648,7 @@ export default function App() {
                   hoverRange={hoverRange}
                   aidRange={aidRange}
                   playing={playing}
-                  onJump={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
+                  onJump={(tokenIdx) => { try { logger.info("jump:reader", { tokenIdx }); } catch {} setWIndex(wordIndexFromToken(tokenIdx)); }}
                   onAddClip={(range) => {
                     setPendingRange(range);
                     setEditingClipId(null);
@@ -653,7 +668,7 @@ export default function App() {
             expanded={clipsExpanded}
             setExpanded={(v) => dispatch({ type: "setClipsExpanded", value: v })}
             drawerOffset={drawerOffset}
-            onGoToToken={(tokenIdx) => setWIndex(wordIndexFromToken(tokenIdx))}
+            onGoToToken={(tokenIdx) => { try { logger.info("jump:clip", { tokenIdx }); } catch {} setWIndex(wordIndexFromToken(tokenIdx)); }}
             setHoverRange={(r) => dispatch({ type: "setHoverRange", range: r })}
             togglePin={togglePin}
             deleteClip={deleteClip}
@@ -685,8 +700,8 @@ export default function App() {
         open={searchStr.trim().length >= 2}
         query={searchStr}
         hits={searchHits}
-        onClose={() => { dispatch({ type: "setSearch", value: "" }); dispatch({ type: "setAidRange", range: null }); }}
-        onGoToToken={(ti) => { setWIndex(wordIndexFromToken(ti)); dispatch({ type: "setAidRange", range: { start: ti, length: 1 } }); }}
+        onClose={() => { try { logger.info("search:close"); } catch {} dispatch({ type: "setSearch", value: "" }); dispatch({ type: "setAidRange", range: null }); }}
+        onGoToToken={(ti) => { try { logger.info("jump:search", { tokenIdx: ti }); } catch {} setWIndex(wordIndexFromToken(ti)); dispatch({ type: "setAidRange", range: { start: ti, length: 1 } }); }}
         drawerOffsetLeft={drawerOffset}
       />
     </>
