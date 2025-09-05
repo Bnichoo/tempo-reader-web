@@ -65,3 +65,6 @@ export const SearchDrawer: React.FC<Props> = ({ open, query, hits, onClose, onGo
     </div>
   );
 };
+
+export default SearchDrawer;
+

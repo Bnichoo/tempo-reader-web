@@ -1,4 +1,6 @@
 import React from "react";
+import type { ErrorInfo } from "react";
+import { captureException } from "../lib/logger";
 
 type Props = { fallback?: React.ReactNode; children: React.ReactNode };
 type State = { hasError: boolean; err?: unknown };
@@ -6,7 +8,9 @@ type State = { hasError: boolean; err?: unknown };
 export class ErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
   static getDerivedStateFromError(err: unknown): State { return { hasError: true, err }; }
-  componentDidCatch(_err: unknown, _info: unknown) { /* noop: could log to analytics */ }
+  componentDidCatch(err: unknown, info: ErrorInfo) {
+    try { captureException(err, { from: "ErrorBoundary", componentStack: info?.componentStack }); } catch {}
+  }
   render() {
     if (this.state.hasError) {
       return this.props.fallback ?? (

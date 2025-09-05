@@ -302,6 +302,7 @@
   height: min(72vh, calc(100vh - 260px));
   overflow: auto;
   scroll-behavior: smooth;
+  touch-action: pan-y pinch-zoom;
 }
 
 /* Stable line height on the text container */
@@ -346,3 +347,8 @@
 
 /* Slightly tighter halo so it doesn't look like extra gap */
 .token.focus::before{ inset:-.06em -.18em; }
+
+@media (max-width: 480px){
+  /* Slightly larger tap target on small screens */
+  .token.word{ padding: 0 .04em; }
+}
