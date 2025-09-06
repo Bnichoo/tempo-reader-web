@@ -13,6 +13,7 @@ import { useResumePosition } from "./hooks/useResumePosition";
 import { useBackup } from "./hooks/useBackup";
 import { exportAll, importFromFile } from "./services/ImportExportService";
 import { HeaderBar } from "./components/HeaderBar";
+import { ImportModal } from "./components/ImportModal";
 import { ProgressBar } from "./components/ProgressBar";
 import { SearchController } from "./features/search/SearchController";
 import UploadIcon from "lucide-react/dist/esm/icons/upload.js";
@@ -32,7 +33,7 @@ import { ProductivityBar } from "./components/ProductivityBar";
 
 export default function AppShell() {
   // Providers
-  const { text, tokens, isProcessingFile, onFile, currentDocId } = useDocument();
+  const { text, setText, tokens, isProcessingFile, onFile, currentDocId } = useDocument();
   const { wIndex, setWIndex, playing, setPlaying } = useReader();
 
   // Install + online state via service hook
@@ -54,6 +55,8 @@ export default function AppShell() {
 
   // Search query (controller renders drawer)
   const [searchStr, setSearchStr] = useState("");
+  // Import modal state
+  const [importOpen, setImportOpen] = useState(false);
 
   // Global tag add events from ClipManager buttons
   useEffect(() => {
@@ -123,7 +126,7 @@ export default function AppShell() {
 
   return (
     <>
-      <HeaderBar offline={offline} canInstall={canInstall} doInstall={doInstall} isProcessingFile={isProcessingFile} onFile={(f) => onFile(f)} playing={playing} setPlaying={(v) => setPlaying(v)} disablePlay={wordIdxData.count === 0} search={searchStr} setSearch={setSearchStr} />
+      <HeaderBar offline={offline} canInstall={canInstall} doInstall={doInstall} onOpenImport={() => setImportOpen(true)} playing={playing} setPlaying={(v) => setPlaying(v)} disablePlay={wordIdxData.count === 0} search={searchStr} setSearch={setSearchStr} />
 
       <DrawerControls open={settings.drawerOpen} setOpen={setDrawerOpen} offset={settings.drawerOpen ? 332 : 0} wps={wps} setWps={setWps} count={count} setCount={setCount} gap={gap} setGap={setGap} focusScale={focusScale} setFocusScale={setFocusScale} dimScale={dimScale} setDimScale={setDimScale} dimBlur={dimBlur} setDimBlur={setDimBlur} fontPx={fontPx} setFontPx={setFontPx} theme={settings.theme || 'clean'} setTheme={setTheme} isImporting={isImporting} onImportJson={onImportJson} isExporting={isExporting} doExport={doExport} />
 
@@ -138,11 +141,10 @@ export default function AppShell() {
                 <div className="text-6xl mb-4 opacity-20">Tempo Reader</div>
                 <h2 className="text-2xl font-semibold text-sepia-700 mb-2">No text loaded</h2>
                 <p className="text-sepia-600 mb-6">Open a .txt or .html file to start reading</p>
-                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-sepia-300 bg-white/50 hover:bg-white transition cursor-pointer">
+                <button className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-sepia-300 bg-white/50 hover:bg-white transition" onClick={() => setImportOpen(true)}>
                   <UploadIcon aria-hidden size={16} />
-                  <span>Choose a file</span>
-                  <input type="file" accept=".txt,.html,.htm,.md" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
-                </label>
+                  <span>Import a file</span>
+                </button>
               </div>
             ) : isProcessingFile ? (
               <div className="flex flex-col items-center justify-center h-full"><div className="text-4xl mb-4 animate-pulse">Loading...</div><p className="text-sepia-600">Processing file...</p></div>
@@ -165,6 +167,7 @@ export default function AppShell() {
       <PlaybackEngine wordCount={wordIdxData.count} />
       <SelectionManager />
       <KeyboardController noteOpen={noteOpen} currentSelection={currentSelection} focusRange={focusRange} openNote={openNoteFromRange} toggleClips={toggleClips} />
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onApply={(newText) => { setText(newText); setImportOpen(false); }} />
     </>
   );
 }

@@ -8,8 +8,7 @@ type Props = {
   offline: boolean;
   canInstall: boolean;
   doInstall: () => void;
-  isProcessingFile: boolean;
-  onFile: (f: File) => void;
+  onOpenImport: () => void;
   playing: boolean;
   setPlaying: (v: boolean) => void;
   disablePlay: boolean;
@@ -17,24 +16,17 @@ type Props = {
   setSearch: (s: string) => void;
 };
 
-export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, isProcessingFile, onFile, playing, setPlaying, disablePlay, search, setSearch }) => {
+export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onOpenImport, playing, setPlaying, disablePlay, search, setSearch }) => {
   return (
     <header className="sticky top-0 z-20 backdrop-blur bg-sepia-50/80 border-b border-sepia-200">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
         <BookOpenTextIcon aria-hidden size={18} />
         <h1 className="text-xl font-semibold mr-3">Tempo Reader (Web)</h1>
 
-        <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition cursor-pointer ml-2" aria-label="Open a text or HTML file">
+        <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition ml-2" aria-label="Import document" onClick={onOpenImport}>
           <UploadIcon aria-hidden size={16} />
-          <span className="text-sm">{isProcessingFile ? "Processing..." : "Open .txt / .html"}</span>
-          <input
-            type="file"
-            accept=".txt,.html,.htm,.md"
-            className="hidden"
-            disabled={isProcessingFile}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
-          />
-        </label>
+          <span className="text-sm">Import</span>
+        </button>
 
         <div className="ml-auto flex items-center gap-2">
           {offline && (
