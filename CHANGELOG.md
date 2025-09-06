@@ -1,6 +1,14 @@
 # Changelog
 
 ## [Unreleased]
+### Merged
+- Merge productivity-features into main (2025-09-06)
+
+### Highlights
+- New AppShell composition with context providers (Document/Reader/Settings/Clips/Selection).
+- Added ProductivityBar UI and clip overlay actions using lucide icons.
+- Added services and hooks: citation, playback, keyboard, selection, word navigation, PWA install, escape stack, focus range.
+- Kept PDF export as lazy-loaded jsPDF to minimize main bundle size.
 
 ## [0.1.0] - 2025-05-09
 ### Added
