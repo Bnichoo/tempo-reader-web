@@ -15,16 +15,11 @@ type NoteEditorProps = {
   onCancel: () => void;
 };
 
-const UndoIcon = () => <span aria-hidden>↶</span>;
-const RedoIcon = () => <span aria-hidden>↷</span>;
-const PasteIcon = () => <span aria-hidden>📋</span>;
-const LinkIcon = () => <span aria-hidden>🔗</span>;
-const UnlinkIcon = () => <span aria-hidden>✖</span>;
+// Legacy emoji icon components (replaced by Lucide icons) removed
 
 const MAX_PASTE_BYTES = 200 * 1024;
 const textByteSize = (s: string) => new Blob([s]).size;
-// keep legacy icon component identifiers referenced to avoid TS6133 during transition
-void UndoIcon; void RedoIcon; void PasteIcon; void LinkIcon; void UnlinkIcon;
+//
 
 export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel }: NoteEditorProps) {
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: 160, top: 120 });
@@ -104,7 +99,7 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
   function redo() { const h = histRef.current; if (h.idx < h.stack.length - 1) { h.idx++; applyHtml(h.stack[h.idx]); } }
   function exec(cmd: string, value?: string) {
     const ed = editorRef.current; if (!ed) return; ed.focus(); restoreSelection();
-    try { if (typeof document.execCommand === "function") document.execCommand(cmd, false, value); } catch {}
+    try { if (typeof document.execCommand === "function") document.execCommand(cmd, false, value); } catch { /* ignore: unsupported execCommand */ }
     updateToolbarStates(); scheduleHistoryCommit();
   }
   function normalizeHref(input: string): string | null {
@@ -134,18 +129,18 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
       const zwsp = document.createTextNode("\u200B"); const r = sel.getRangeAt(0); r.insertNode(zwsp);
       sel.removeAllRanges(); const nr = document.createRange(); nr.setStartBefore(zwsp); nr.setEndAfter(zwsp); sel.addRange(nr);
     }
-    try { if (typeof document.execCommand === "function") document.execCommand("createLink", false, href); } catch {}
+    try { if (typeof document.execCommand === "function") document.execCommand("createLink", false, href); } catch { /* ignore: unsupported execCommand */ }
     if (editorRef.current) fixupAllAnchors(editorRef.current); updateToolbarStates(); pushHistorySnapshot(true);
   }
   function unlinkSelection() {
     const ed = editorRef.current; if (!ed) return; ed.focus(); restoreSelection();
-    try { if (typeof document.execCommand === "function") document.execCommand("unlink"); } catch {}
+    try { if (typeof document.execCommand === "function") document.execCommand("unlink"); } catch { /* ignore: unsupported execCommand */ }
     updateToolbarStates(); pushHistorySnapshot(true);
   }
   function normalizeOfficeHtml(html: string): string {
     html = html.replace(/<!--\[if[\s\S]*?endif\]-->/gi, "");
-    html = html.replace(/class=\"?Mso[a-zA-Z0-9]*\"?/g, "");
-    html = html.replace(/style=\"[^\"]*mso-[^\";]*;?[^\"]*\"/gi, "");
+    html = html.replace(/class="?Mso[a-zA-Z0-9]*"?/g, "");
+    html = html.replace(/style="[^"]*mso-[^";]*;?[^"]*"/gi, "");
     html = html.replace(/<o:p>\s*<\/o:p>/gi, "");
     html = html.replace(/<o:p>.*?<\/o:p>/gi, "");
     return html;
@@ -157,7 +152,7 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
+        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;")
       ).join("<br>")).map((safe) => `<p>${safe}</p>`).join("");
     return html || "<p></p>";

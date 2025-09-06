@@ -12,7 +12,7 @@ export function useResumePosition(totalWords: number, wIndex: number, setWIndex:
         const idx = Math.max(0, Math.min(Number(raw) || 0, Math.max(0, totalWords - 1)));
         setWIndex(idx);
       }
-    } catch {}
+    } catch { /* ignore: resume is best-effort */ }
     resumedRef.current = true;
   }, [totalWords, setWIndex, key]);
 
@@ -21,9 +21,8 @@ export function useResumePosition(totalWords: number, wIndex: number, setWIndex:
   useEffect(() => {
     if (tRef.current) window.clearTimeout(tRef.current);
     tRef.current = window.setTimeout(() => {
-      try { localStorage.setItem(key, String(wIndex)); } catch {}
+      try { localStorage.setItem(key, String(wIndex)); } catch { /* ignore: persist is best-effort */ }
     }, 500);
     return () => { if (tRef.current) window.clearTimeout(tRef.current); };
   }, [wIndex, key]);
 }
-

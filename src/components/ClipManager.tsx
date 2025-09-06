@@ -24,11 +24,6 @@ type ClipManagerProps = {
   // Clip actions
   togglePin: (id: string) => void;
   deleteClip: (id: string) => void;
-  // Edit range controls
-  editRangeForId: string | null;
-  currentSelection: RangeT | null;
-  applyEditedRange: () => void;
-  cancelEditRange: () => void;
   beginEditRange: (id: string) => void;
   // Notes
   onEditNote: (clipId: string) => void;
@@ -44,17 +39,13 @@ export function ClipManager(props: ClipManagerProps) {
     setHoverRange,
     togglePin,
     deleteClip,
-    editRangeForId,
-    currentSelection,
-    applyEditedRange,
-    cancelEditRange,
     beginEditRange,
     onEditNote,
   } = props;
 
   // Quick analytics wrappers
-  const doTogglePin = (id: string) => { try { logger.info("clips:pin_toggle", { id }); } catch {} togglePin(id); };
-  const doDeleteClip = (id: string) => { try { logger.info("clips:delete", { id }); } catch {} deleteClip(id); };
+  const doTogglePin = (id: string) => { try { logger.info("clips:pin_toggle", { id }); } catch { /* ignore: optional telemetry */ } togglePin(id); };
+  const doDeleteClip = (id: string) => { try { logger.info("clips:delete", { id }); } catch { /* ignore: optional telemetry */ } deleteClip(id); };
 
   // Chips for dock (pinned first)
   const topChips = useMemo(() => {
@@ -112,9 +103,9 @@ export function ClipManager(props: ClipManagerProps) {
   useEffect(() => {
     if (expanded) {
       setTimeout(() => { (document.querySelector('input[data-role="clip-search"]') as HTMLInputElement | null)?.focus(); }, 0);
-      try { logger.info("clips:open", { count: clips.length }); } catch {}
+      try { logger.info("clips:open", { count: clips.length }); } catch { /* ignore: optional telemetry */ }
     } else {
-      try { logger.info("clips:close"); } catch {}
+      try { logger.info("clips:close"); } catch { /* ignore: optional telemetry */ }
     }
     let active = true;
     (async () => {
@@ -159,7 +150,7 @@ export function ClipManager(props: ClipManagerProps) {
         topChips={topChips}
         drawerOffset={drawerOffset}
         onOpen={() => setExpanded(true)}
-        onChipClick={(c) => { try { logger.info("clips:jump_chip"); } catch {} onGoToToken(c.start); setExpanded(false); }}
+                onChipClick={(c) => { try { logger.info("clips:jump_chip"); } catch { /* ignore: optional telemetry */ } onGoToToken(c.start); setExpanded(false); }}
       />
 
       {/* Overlay drawer */}
@@ -174,7 +165,7 @@ export function ClipManager(props: ClipManagerProps) {
                   usagePct={usagePct}
                   queryInput={queryInput}
                   setQueryInput={setQueryInput}
-                  onExportClick={async () => { try { logger.info("clips:export_bar", { open: !exportBar }); } catch {} setExportBar(v => !v); try { await requestPersistentStorage(); } catch {} }}
+                  onExportClick={async () => { try { logger.info("clips:export_bar", { open: !exportBar }); } catch { /* ignore: optional telemetry */ } setExportBar(v => !v); try { await requestPersistentStorage(); } catch { /* ignore: storage API not available */ } }}
                   onCloseDrawer={() => setExpanded(false)}
                 />
 
@@ -303,4 +294,3 @@ export function ClipManager(props: ClipManagerProps) {
 }
 
 export default ClipManager;
-

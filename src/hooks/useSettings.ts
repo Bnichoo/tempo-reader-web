@@ -21,7 +21,7 @@ export function useSettings() {
       if (savedTheme) return savedTheme;
       const savedDark = localStorage.getItem("theme:dark");
       if (savedDark != null) return savedDark === "1" ? 'dark' : 'clean';
-    } catch {}
+    } catch { /* ignore: localStorage unavailable */ }
     return 'clean';
   });
   const dark = theme === 'dark';
@@ -52,7 +52,7 @@ export function useSettings() {
       localStorage.setItem("theme:name", theme || 'clean');
       // Keep legacy key in sync for older payloads
       localStorage.setItem("theme:dark", dark ? "1" : "0");
-    } catch {}
+    } catch { /* ignore: persist best-effort */ }
   }, [theme, dark]);
 
   // Save settings when they change

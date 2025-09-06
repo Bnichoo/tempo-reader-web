@@ -17,13 +17,13 @@ export function setTelemetrySink(fn: ((e: LogEvent) => void) | null) {
 export function isDebugEnabled(): boolean {
   try {
     if (typeof localStorage !== "undefined" && localStorage.getItem("tr:debug") === "1") return true;
-  } catch {}
+  } catch { /* ignore: localStorage unavailable */ }
   // Vite: prefer explicit env
   try {
     const env: any = (import.meta as any)?.env;
     if (env?.VITE_DEBUG === "1") return true;
     return !!(env?.MODE === "development");
-  } catch {}
+  } catch { /* ignore: env unavailable */ }
   return false;
 }
 
@@ -31,14 +31,14 @@ function emit(level: LogLevel, msg: string, context?: Record<string, unknown>, e
   const evt: LogEvent = { level, msg, time: new Date().toISOString(), context, error };
   try {
     if (sink) sink(evt);
-  } catch {}
+  } catch { /* ignore: telemetry sink failed */ }
   try {
     const line = `[${evt.time}] ${level.toUpperCase()}: ${msg}`;
     if (level === "debug") { if (isDebugEnabled()) console.debug(line, context ?? ""); }
     else if (level === "info") console.info(line, context ?? "");
     else if (level === "warn") console.warn(line, context ?? "");
     else console.error(line, error ?? context ?? "");
-  } catch {}
+  } catch { /* ignore: console may be unavailable */ }
 }
 
 export const logger = {

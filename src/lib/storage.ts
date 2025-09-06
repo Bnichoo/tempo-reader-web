@@ -23,7 +23,7 @@ export function saveSettings(s: SettingsV1) {
   tSettings = window.setTimeout(() => {
     try {
       localStorage.setItem(K_SETTINGS, JSON.stringify(lastSettings));
-    } catch {}
+    } catch { /* ignore: best-effort persist */ }
   }, 150);
 }
 
@@ -76,7 +76,7 @@ export async function saveClips(list: Clip[]): Promise<void> {
         if (lastClips) await clipsBulkPut(lastClips);
       } catch {
         // As a last resort, mirror to localStorage
-        try { localStorage.setItem(K_CLIPS, JSON.stringify(lastClips || [])); } catch {}
+        try { localStorage.setItem(K_CLIPS, JSON.stringify(lastClips || [])); } catch { /* ignore: localStorage may be blocked */ }
       } finally {
         resolve();
       }
@@ -106,12 +106,12 @@ export function parseImport(json: string): { settings?: Partial<SettingsV1>; cli
 
 function flushPending() {
   if (tSettings && lastSettings) {
-    try { localStorage.setItem(K_SETTINGS, JSON.stringify(lastSettings)); } catch {}
+    try { localStorage.setItem(K_SETTINGS, JSON.stringify(lastSettings)); } catch { /* ignore */ }
     clearTimeout(tSettings); tSettings = null;
   }
   if (tClips && lastClips) {
     // Fire-and-forget; no await
-    try { void clipsBulkPut(lastClips); } catch {}
+    try { void clipsBulkPut(lastClips); } catch { /* ignore */ }
     clearTimeout(tClips); tClips = null;
   }
 }

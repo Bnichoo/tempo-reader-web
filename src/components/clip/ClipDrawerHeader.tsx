@@ -1,4 +1,6 @@
 import React from "react";
+import Download from "lucide-react/dist/esm/icons/download.js";
+import X from "lucide-react/dist/esm/icons/x.js";
 
 type Props = {
   clipsCount: number;
@@ -21,12 +23,31 @@ export const ClipDrawerHeader: React.FC<Props> = ({ clipsCount, usagePct, queryI
             Storage: {usagePct}%
           </div>
         )}
-        <input data-role="clip-search" className="px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 w-72" placeholder="Search clips…" value={queryInput} onChange={(e) => setQueryInput(e.target.value)} />
-        <button className={`px-2.5 py-1.5 rounded-lg border border-sepia-300 bg-white hover:bg-sepia-50`} onClick={onExportClick} title="Export clips">Export…</button>
-        <button className="px-2.5 py-1.5 rounded-lg border border-sepia-300 bg-white hover:bg-sepia-50" onClick={onCloseDrawer}>Close</button>
+        <input
+          data-role="clip-search"
+          className="px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 w-72"
+          placeholder="Search clips…"
+          value={queryInput}
+          onChange={(e) => setQueryInput(e.target.value)}
+        />
+        <button
+          className={`px-2.5 py-1.5 rounded-lg border border-sepia-300 bg-white hover:bg-sepia-50 inline-flex items-center gap-2`}
+          onClick={onExportClick}
+          title="Export clips"
+        >
+          <Download aria-hidden size={16} /> <span>Export…</span>
+        </button>
+        <button
+          className="px-2.5 py-1.5 rounded-lg border border-sepia-300 bg-white hover:bg-sepia-50 inline-flex items-center gap-2"
+          onClick={onCloseDrawer}
+          title="Close clips"
+        >
+          <X aria-hidden size={16} /> <span>Close</span>
+        </button>
       </div>
     </div>
   );
 };
 
 export default ClipDrawerHeader;
+

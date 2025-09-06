@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type ToastKind = "info" | "success" | "warn" | "error";
@@ -59,4 +60,3 @@ export function notify(message: string, kind: ToastKind = "info", ttl = 3200) {
     console.log(`[toast:${kind}]`, message);
   }
 }
-

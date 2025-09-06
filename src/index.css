@@ -317,8 +317,7 @@ header.sticky{ background: color-mix(in srgb, var(--panel-bg) 86%, transparent) 
   background: var(--sepia-50);
 }
 
-/* Hide legacy emoji quick-actions in clip overlay (replaced with icons) */
-.clip-card .absolute.top-3.right-3.flex.gap-2 { display: none; }
+/* Legacy quick-action emoji were removed; ensure clip overlay actions are visible */
 
 /* Modal / Note Editor */
 .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.12); z-index:50; }

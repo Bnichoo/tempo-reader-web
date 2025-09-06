@@ -29,10 +29,9 @@ export function usePWAInstall() {
 
   const promptInstall = async () => {
     const ev = deferredRef.current; if (!ev) return;
-    await ev.prompt(); try { await ev.userChoice; } catch {}
+    await ev.prompt(); try { await ev.userChoice; } catch { /* ignore: userChoice may be unavailable */ }
     deferredRef.current = null; setCanInstall(false);
   };
 
   return { canInstall, offline, promptInstall } as const;
 }
-

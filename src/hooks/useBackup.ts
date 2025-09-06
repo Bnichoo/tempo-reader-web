@@ -6,7 +6,11 @@ export function useBackup<T extends object>(data: T, key = "tr:backup:v1", inter
 
   useEffect(() => {
     const doBackup = () => {
-      try { const d = ref.current; if (!d) return; localStorage.setItem(key, JSON.stringify({ ts: Date.now(), ...d } as any)); } catch {}
+      try {
+        const d = ref.current; if (!d) return;
+        const payload: unknown = { ts: Date.now(), ...(d as object) };
+        localStorage.setItem(key, JSON.stringify(payload));
+      } catch { /* ignore: best-effort backup */ }
     };
     const onBeforeUnload = () => doBackup();
     const onPageHide = () => doBackup();
@@ -23,4 +27,3 @@ export function useBackup<T extends object>(data: T, key = "tr:backup:v1", inter
     };
   }, [key, intervalMs]);
 }
-

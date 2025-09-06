@@ -35,7 +35,7 @@ export function useTokenizer(text: string) {
           logger.debug("tokenize:worker", { tokens: (tokens as string[])?.length ?? 0 })
         }
       }
-      const onErr = (_e: Event) => {
+      const onErr = () => {
         logger.warn("tokenize:worker_error_fallback")
         const t0 = performance.now()
         const tok = tokenizeSync(text)

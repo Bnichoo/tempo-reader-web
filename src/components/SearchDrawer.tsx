@@ -11,15 +11,15 @@ type Props = {
 };
 
 export const SearchDrawer: React.FC<Props> = ({ open, query, hits, onClose, onGoToToken, drawerOffsetLeft }) => {
-  if (!open) return null;
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
+    if (!open) return;
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [onClose]);
+  }, [open, onClose]);
 
-  const list = useMemo(() => hits.slice(0, 200), [hits]);
+  const list = useMemo(() => (open ? hits.slice(0, 200) : []), [open, hits]);
 
   const escapeHtml = (s: string) => s
     .replace(/&/g, "&amp;")
@@ -32,9 +32,10 @@ export const SearchDrawer: React.FC<Props> = ({ open, query, hits, onClose, onGo
     const term = q.trim(); if (!term) return escapeHtml(text);
     try {
       const rx = new RegExp(escRx(term), "gi");
-      return escapeHtml(text).replace(rx, (m) => `<mark class=\"search-hl\">${escapeHtml(m)}</mark>`);
+      return escapeHtml(text).replace(rx, (m) => `<mark class="search-hl">${escapeHtml(m)}</mark>`);
     } catch { return escapeHtml(text); }
   };
+  if (!open) return null;
 
   return (
     <div className="fixed z-40 top-[64px] right-0 bottom-0" style={{ right: 0, left: undefined }}>
@@ -67,4 +68,3 @@ export const SearchDrawer: React.FC<Props> = ({ open, query, hits, onClose, onGo
 };
 
 export default SearchDrawer;
-

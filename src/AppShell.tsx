@@ -45,7 +45,7 @@ export default function AppShell() {
   const { settings, setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen, setTheme } = useSettingsCtx();
   const { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme } = settings;
   const { clips, setClips, togglePin, deleteClip, addClip, updateClipNote, addTag } = useClipsCtx();
-  useEffect(() => { try { localStorage.setItem("tr:lastDocId", currentDocId); void recordRecentDoc(currentDocId, docDisplayName(text)); } catch {} }, [currentDocId, text]);
+  useEffect(() => { try { localStorage.setItem("tr:lastDocId", currentDocId); void recordRecentDoc(currentDocId, docDisplayName(text)); } catch { /* ignore: best-effort persist */ } }, [currentDocId, text]);
 
   // Focus window
   const focusRange = useFocusRange(wIndex, count, wordIdxData);
@@ -89,7 +89,7 @@ export default function AppShell() {
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const doExport = () => { setIsExporting(true); try { const payload: SettingsV1 = { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme }; exportAll(payload, clips); } finally { setTimeout(() => setIsExporting(false), 500); } };
-  const onImportJson = async (file: File | null) => { if (!file) return; setIsImporting(true); try { await importFromFile(file, { setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen, setTheme: setTheme as any }, (list) => setClips(clipRepository.prune(clipRepository.migrate(list)))); alert("Import complete."); } catch (e: unknown) { const msg = (typeof e === "object" && e && "message" in e && typeof (e as any).message === "string") ? (e as any).message : String(e); alert("Import failed: " + msg); } finally { setIsImporting(false); } };
+  const onImportJson = async (file: File | null) => { if (!file) return; setIsImporting(true); try { await importFromFile(file, { setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen, setTheme }, (list) => setClips(clipRepository.prune(clipRepository.migrate(list)))); alert("Import complete."); } catch (e: unknown) { const msg = e instanceof Error ? e.message : String(e); alert("Import failed: " + msg); } finally { setIsImporting(false); } };
 
   // Resume + backup
   useBackup({ settings: { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme }, clips }, "tr:backup:v1", 5000);
@@ -125,7 +125,7 @@ export default function AppShell() {
     <>
       <HeaderBar offline={offline} canInstall={canInstall} doInstall={doInstall} isProcessingFile={isProcessingFile} onFile={(f) => onFile(f)} playing={playing} setPlaying={(v) => setPlaying(v)} disablePlay={wordIdxData.count === 0} search={searchStr} setSearch={setSearchStr} />
 
-      <DrawerControls open={settings.drawerOpen} setOpen={setDrawerOpen} offset={settings.drawerOpen ? 332 : 0} wps={wps} setWps={setWps} count={count} setCount={setCount} gap={gap} setGap={setGap} focusScale={focusScale} setFocusScale={setFocusScale} dimScale={dimScale} setDimScale={setDimScale} dimBlur={dimBlur} setDimBlur={setDimBlur} fontPx={fontPx} setFontPx={setFontPx} theme={settings.theme as any} setTheme={setTheme as any} isImporting={isImporting} onImportJson={onImportJson} isExporting={isExporting} doExport={doExport} />
+      <DrawerControls open={settings.drawerOpen} setOpen={setDrawerOpen} offset={settings.drawerOpen ? 332 : 0} wps={wps} setWps={setWps} count={count} setCount={setCount} gap={gap} setGap={setGap} focusScale={focusScale} setFocusScale={setFocusScale} dimScale={dimScale} setDimScale={setDimScale} dimBlur={dimBlur} setDimBlur={setDimBlur} fontPx={fontPx} setFontPx={setFontPx} theme={settings.theme || 'clean'} setTheme={setTheme} isImporting={isImporting} onImportJson={onImportJson} isExporting={isExporting} doExport={doExport} />
 
       {settings.drawerOpen && <div className="fixed inset-0 z-20" style={{ left: `${settings.drawerOpen ? 332 : 0}px` }} onClick={() => setDrawerOpen(false)} />}
 
@@ -154,7 +154,7 @@ export default function AppShell() {
           </section>
 
           <ErrorBoundary>
-            <ClipManager clips={clips} expanded={clipsExpanded} setExpanded={setClipsExpanded} drawerOffset={settings.drawerOpen ? 332 : 0} onGoToToken={onGoToToken} setHoverRange={setHoverRange} togglePin={togglePin} deleteClip={deleteClip} editRangeForId={null} currentSelection={currentSelection} applyEditedRange={() => {}} cancelEditRange={() => {}} beginEditRange={() => {}} onEditNote={(id) => { setEditingClipId(id); setNoteOpen(true); }} />
+            <ClipManager clips={clips} expanded={clipsExpanded} setExpanded={setClipsExpanded} drawerOffset={settings.drawerOpen ? 332 : 0} onGoToToken={onGoToToken} setHoverRange={setHoverRange} togglePin={togglePin} deleteClip={deleteClip} beginEditRange={() => {}} onEditNote={(id) => { setEditingClipId(id); setNoteOpen(true); }} />
           </ErrorBoundary>
 
           <NoteEditorModal open={noteOpen} draftKey={editingClipId ? `draft:clip:${editingClipId}` : pendingRange ? `draft:new` : undefined} initialHtml={editingClipId ? clips.find((c) => c.id === editingClipId)?.noteHtml || "" : ""} onCancel={() => { setNoteOpen(false); setEditingClipId(null); setPendingRange(null); }} onSave={(html) => handleSaveNote(html)} />

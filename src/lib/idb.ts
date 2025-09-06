@@ -21,10 +21,16 @@ function openDB(): Promise<IDBDatabase> {
       }
       // Ensure index on docId exists
       try {
-        if (!Array.from((clips as any).indexNames || []).includes("docId")) {
+        const names: string[] = [];
+        // DOMStringList is not iterable in all browsers
+        for (let i = 0; i < clips.indexNames.length; i++) {
+          const n = clips.indexNames.item(i);
+          if (n) names.push(n);
+        }
+        if (!names.includes("docId")) {
           clips.createIndex("docId", "docId", { unique: false });
         }
-      } catch {}
+      } catch { /* ignore: index may already exist */ }
       if (!db.objectStoreNames.contains(STORE_META)) {
         db.createObjectStore(STORE_META, { keyPath: "key" });
       }
@@ -71,11 +77,11 @@ export async function clipsGetByDoc(docId: string): Promise<Clip[]> {
     const t = db.transaction(STORE_CLIPS, "readonly");
     const s = t.objectStore(STORE_CLIPS);
     let idx: IDBIndex | null = null;
-    try { idx = s.index("docId"); } catch {}
+    try { idx = s.index("docId"); } catch { /* ignore: index missing */ }
     if (!idx) {
       // Fallback: getAll and filter
       const req = s.getAll();
-      req.onsuccess = () => resolve(((req.result || []) as Clip[]).filter(c => (c as any).docId === docId));
+      req.onsuccess = () => resolve(((req.result || []) as Clip[]).filter((c) => c.docId === docId));
       req.onerror = () => reject(req.error);
       return;
     }
@@ -91,10 +97,10 @@ export async function clipsCountByDoc(docId: string): Promise<number> {
     const t = db.transaction(STORE_CLIPS, "readonly");
     const s = t.objectStore(STORE_CLIPS);
     let idx: IDBIndex | null = null;
-    try { idx = s.index("docId"); } catch {}
+    try { idx = s.index("docId"); } catch { /* ignore: index missing */ }
     if (!idx) {
       const req = s.getAll();
-      req.onsuccess = () => resolve(((req.result || []) as Clip[]).filter(c => (c as any).docId === docId).length);
+      req.onsuccess = () => resolve(((req.result || []) as Clip[]).filter((c) => c.docId === docId).length);
       req.onerror = () => reject(req.error);
       return;
     }
@@ -111,7 +117,7 @@ export async function clipsBulkUpdateDocId(fromDocId: string, toDocId: string): 
   await new Promise<void>((resolve, reject) => {
     const t = db.transaction(STORE_CLIPS, "readwrite");
     const s = t.objectStore(STORE_CLIPS);
-    for (const c of items) { (c as any).docId = toDocId; s.put(c); }
+    for (const c of items) { c.docId = toDocId; s.put(c); }
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
   });
@@ -124,7 +130,7 @@ export async function recordRecentDoc(docId: string, name: string): Promise<void
     const list = (await metaGet<string[]>("recentDocs")) || [];
     const next = [docId, ...list.filter(id => id !== docId)].slice(0, 20);
     await metaSet("recentDocs", next);
-  } catch {}
+  } catch { /* ignore: record recent doc is best-effort */ }
 }
 
 export async function clipsCount(): Promise<number> {
@@ -189,8 +195,8 @@ export async function metaSet<T = unknown>(key: string, value: T): Promise<void>
 
 export async function estimateStorage(): Promise<{ usage?: number; quota?: number }> {
   try {
-    const est = await (navigator.storage?.estimate?.() ?? Promise.resolve({} as any));
-    return { usage: (est as any).usage, quota: (est as any).quota };
+    const est = await navigator.storage?.estimate?.();
+    return { usage: est?.usage, quota: est?.quota };
   } catch {
     return {};
   }
@@ -199,9 +205,10 @@ export async function estimateStorage(): Promise<{ usage?: number; quota?: numbe
 export async function requestPersistentStorage(): Promise<boolean> {
   try {
     // Some TS DOM lib versions may not include 'persist' typing
-    const persist = (navigator.storage as any)?.persist as (() => Promise<boolean>) | undefined;
-    if (persist) {
-      return await persist();
+    const sm: StorageManager | undefined = navigator.storage;
+    const maybe = (sm as unknown as { persist?: () => Promise<boolean> })?.persist;
+    if (typeof maybe === 'function') {
+      return await maybe();
     }
     return false;
   } catch {

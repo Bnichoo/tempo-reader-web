@@ -48,11 +48,19 @@ export function DrawerControls(props: DrawerControlsProps) {
   useEffect(() => {
     if (!open) return; let timer: number | null = null;
     const reset = () => { if (timer) window.clearTimeout(timer); timer = window.setTimeout(() => setOpen(false), 20000); };
-    reset(); const el: Document | HTMLDivElement = drawerRef.current || document; const handler = () => reset();
-    const events: (keyof DocumentEventMap)[] = ["mousemove", "mousedown", "wheel", "keydown", "touchstart"];
-    events.forEach((ev) => el.addEventListener(ev, handler, { passive: true } as any));
-    return () => { if (timer) window.clearTimeout(timer); events.forEach((ev) => el.removeEventListener(ev, handler as any)); };
-    }, [open, setOpen]);
+    reset();
+    const handler: EventListener = () => reset();
+    const elDiv = drawerRef.current;
+    if (elDiv) {
+      const evs: (keyof HTMLElementEventMap)[] = ["mousemove", "mousedown", "wheel", "keydown", "touchstart"];
+      evs.forEach((ev) => elDiv.addEventListener(ev, handler, { passive: true }));
+      return () => { if (timer) window.clearTimeout(timer); evs.forEach((ev) => elDiv.removeEventListener(ev, handler)); };
+    } else {
+      const evs: (keyof DocumentEventMap)[] = ["mousemove", "mousedown", "wheel", "keydown", "touchstart"];
+      evs.forEach((ev) => document.addEventListener(ev, handler, { passive: true }));
+      return () => { if (timer) window.clearTimeout(timer); evs.forEach((ev) => document.removeEventListener(ev, handler)); };
+    }
+  }, [open, setOpen]);
 
   useEffect(() => {
     if (!open) return;
