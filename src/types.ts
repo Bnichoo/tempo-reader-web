@@ -9,6 +9,8 @@ export type Clip = {
   pinned?: boolean;
   createdUtc: string;
   docId?: string;
+  tags?: string[];
+  category?: string;
 };
 
 export type SettingsV1 = {
@@ -21,4 +23,6 @@ export type SettingsV1 = {
   fontPx: number;
   dark: boolean;
   drawerOpen: boolean;
+  /** Optional theme name; defaults to 'clean' */
+  theme?: 'clean' | 'sepia' | 'high-contrast' | 'dark';
 };

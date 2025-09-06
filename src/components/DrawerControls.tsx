@@ -8,6 +8,9 @@ import Rows from "lucide-react/dist/esm/icons/rows.js";
 import Focus from "lucide-react/dist/esm/icons/focus.js";
 import Contrast from "lucide-react/dist/esm/icons/contrast.js";
 import TypeIcon from "lucide-react/dist/esm/icons/type.js";
+import Sun from "lucide-react/dist/esm/icons/sun.js";
+import Moon from "lucide-react/dist/esm/icons/moon.js";
+import Palette from "lucide-react/dist/esm/icons/palette.js";
 
 type DrawerControlsProps = {
   open: boolean;
@@ -20,13 +23,14 @@ type DrawerControlsProps = {
   dimScale: number; setDimScale: (v: number) => void;
   dimBlur: number; setDimBlur: (v: number) => void;
   fontPx: number; setFontPx: (v: number) => void;
-  dark: boolean; setDark: (v: boolean) => void;
+  theme: 'clean' | 'sepia' | 'high-contrast' | 'dark';
+  setTheme: (t: 'clean' | 'sepia' | 'high-contrast' | 'dark') => void;
   isImporting: boolean; onImportJson: (file: File | null) => void;
   isExporting: boolean; doExport: () => void;
 };
 
 export function DrawerControls(props: DrawerControlsProps) {
-  const { open, setOpen, offset, wps, setWps, count, setCount, gap, setGap, focusScale, setFocusScale, dimScale, setDimScale, dimBlur, setDimBlur, fontPx, setFontPx, dark, setDark, isImporting, onImportJson, isExporting, doExport } = props;
+  const { open, setOpen, offset, wps, setWps, count, setCount, gap, setGap, focusScale, setFocusScale, dimScale, setDimScale, dimBlur, setDimBlur, fontPx, setFontPx, theme, setTheme, isImporting, onImportJson, isExporting, doExport } = props;
 
   const drawerRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -142,12 +146,45 @@ export function DrawerControls(props: DrawerControlsProps) {
           <div className="text-xs text-sepia-700 mt-2">Auto-backup on close is always on.</div>
         </div>
 
-        <div className="my-3 flex items-center gap-2">
-          <input id="darkmode" type="checkbox" checked={dark} onChange={(e) => setDark(e.target.checked)} />
-          <label htmlFor="darkmode" className="text-sm">Dark mode</label>
+        <div className="my-4 border-t border-sepia-200 pt-3">
+          <div className="text-sm font-semibold mb-2">Theme</div>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Theme selection">
+            <button
+              className={`px-2.5 py-1.5 rounded-lg border ${theme === 'clean' ? 'border-sepia-400' : 'border-sepia-200'} bg-white hover:bg-sepia-50 flex items-center gap-2`}
+              onClick={() => setTheme('clean')}
+              aria-pressed={theme === 'clean'}
+              title="Clean"
+            >
+              <Sun aria-hidden size={16} /> Clean
+            </button>
+            <button
+              className={`px-2.5 py-1.5 rounded-lg border ${theme === 'sepia' ? 'border-sepia-400' : 'border-sepia-200'} bg-white hover:bg-sepia-50 flex items-center gap-2`}
+              onClick={() => setTheme('sepia')}
+              aria-pressed={theme === 'sepia'}
+              title="Sepia (focus mode)"
+            >
+              <Palette aria-hidden size={16} /> Sepia
+            </button>
+            <button
+              className={`px-2.5 py-1.5 rounded-lg border ${theme === 'high-contrast' ? 'border-sepia-400' : 'border-sepia-200'} bg-white hover:bg-sepia-50 flex items-center gap-2`}
+              onClick={() => setTheme('high-contrast')}
+              aria-pressed={theme === 'high-contrast'}
+              title="High contrast"
+            >
+              <Contrast aria-hidden size={16} /> High contrast
+            </button>
+            <button
+              className={`px-2.5 py-1.5 rounded-lg border ${theme === 'dark' ? 'border-sepia-400' : 'border-sepia-200'} bg-white hover:bg-sepia-50 flex items-center gap-2`}
+              onClick={() => setTheme('dark')}
+              aria-pressed={theme === 'dark'}
+              title="Dark"
+            >
+              <Moon aria-hidden size={16} /> Dark
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 text-xs text-sepia-700">
+      <div className="mt-4 text-xs text-sepia-700">
           Shortcuts: <kbd>Space</kbd> play/pause, <kbd>C</kbd> add note, <kbd>Alt/Cmd+C</kbd> open/close clips
         </div>
       </aside>

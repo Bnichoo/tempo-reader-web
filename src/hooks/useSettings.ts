@@ -14,11 +14,18 @@ export function useSettings() {
   const [dimScale, setDimScale] = useState(0.96);
   const [dimBlur, setDimBlur] = useState(0.8);
   const [fontPx, setFontPx] = useState(20);
-  const [dark, setDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem("theme:dark");
-    if (saved != null) return saved === "1";
-    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  // Theme: clean (default), sepia, high-contrast, dark
+  const [theme, setTheme] = useState<SettingsV1['theme']>(() => {
+    try {
+      const savedTheme = localStorage.getItem("theme:name") as SettingsV1['theme'] | null;
+      if (savedTheme) return savedTheme;
+      const savedDark = localStorage.getItem("theme:dark");
+      if (savedDark != null) return savedDark === "1" ? 'dark' : 'clean';
+    } catch {}
+    return 'clean';
   });
+  const dark = theme === 'dark';
+  const setDark = (v: boolean) => setTheme(v ? 'dark' : 'clean');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Load settings once
@@ -32,24 +39,29 @@ export function useSettings() {
     sc(s, "dimScale", (v) => setDimScale(clamp(Number(v), 0.85, 1.0)));
     sc(s, "dimBlur", (v) => setDimBlur(clamp(Number(v), 0, 2.5)));
     sc(s, "fontPx", (v) => setFontPx(clamp(Number(v), 16, 28)));
-    sc(s, "dark", (v) => setDark(!!v));
+    // Theme migration: prefer explicit theme if present; otherwise use legacy dark boolean
+    if (s.theme) setTheme(s.theme);
+    else sc(s, "dark", (v) => setDark(!!v));
     sc(s, "drawerOpen", (v) => setDrawerOpen(!!v));
   }, []);
 
   // Persist theme side-effect
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-    localStorage.setItem("theme:dark", dark ? "1" : "0");
-  }, [dark]);
+    document.documentElement.setAttribute("data-theme", theme || 'clean');
+    try {
+      localStorage.setItem("theme:name", theme || 'clean');
+      // Keep legacy key in sync for older payloads
+      localStorage.setItem("theme:dark", dark ? "1" : "0");
+    } catch {}
+  }, [theme, dark]);
 
   // Save settings when they change
   useEffect(() => {
-    const settings: SettingsV1 = { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen };
+    const settings: SettingsV1 = { wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme };
     saveSettingsStorage(settings);
-  }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen]);
+  }, [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme]);
 
-  const settings = useMemo(() => ({ wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen }), [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen]);
-  const setters = { setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen };
+  const settings = useMemo(() => ({ wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme }), [wps, count, gap, focusScale, dimScale, dimBlur, fontPx, dark, drawerOpen, theme]);
+  const setters = { setWps, setCount, setGap, setFocusScale, setDimScale, setDimBlur, setFontPx, setDark, setDrawerOpen, setTheme };
   return { settings, ...setters } as const;
 }
-

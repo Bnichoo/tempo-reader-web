@@ -2,15 +2,6 @@ import type { Clip } from "../types";
 import { sanitizeHTML } from "./sanitize";
 import jsPDF from "jspdf";
 
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /**
  * Opens a print-optimized window for clips, letting users "Save as PDF".
  * Avoids bundling a PDF lib and works reliably across browsers.

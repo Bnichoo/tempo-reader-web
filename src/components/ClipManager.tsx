@@ -5,6 +5,10 @@ import { useEdgeScroll } from "../hooks/useEdgeScroll";
 import { useDebouncedValue } from "../hooks/useDebounce";
 import { estimateStorage, requestPersistentStorage } from "../lib/idb";
 import { exportClipsPdf } from "../lib/exporters";
+import Pin from "lucide-react/dist/esm/icons/pin.js";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2.js";
+import Quote from "lucide-react/dist/esm/icons/quote.js";
+import { buildMetaFromClip, formatCitation } from "../services/CitationService";
 
 type VirtualizedProps = {
   list: Clip[];
@@ -78,7 +82,22 @@ function VirtualizedClipList(props: VirtualizedProps) {
                 }}
                 title={c.pinned ? "Unpin" : "Pin"}
               >
+                <Pin aria-hidden size={16} />
                 {c.pinned ? "★" : "☆"}
+              </button>
+              <button
+                className="p-1.5 rounded-lg border border-sepia-200 bg-white hover:bg-sepia-50 text-xs"
+                aria-label="Copy citation"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const meta = buildMetaFromClip(c);
+                  const bib = formatCitation(meta, "bibtex");
+                  try { await navigator.clipboard.writeText(bib); }
+                  catch { window.prompt("Copy citation:", bib); }
+                }}
+                title="Copy BibTeX citation"
+              >
+                <Quote aria-hidden size={16} />
               </button>
               <button
                 className="p-1.5 rounded-lg border border-sepia-200 bg-white hover:bg-sepia-50 text-xs"
@@ -91,7 +110,27 @@ function VirtualizedClipList(props: VirtualizedProps) {
                 }}
                 title="Delete"
               >
-                Delete
+                <Trash2 aria-hidden size={16} />
+              </button>
+            </div>
+
+            {/* New quick action icons (replace hidden legacy buttons) */}
+            <div className="absolute top-3 right-3 flex gap-2 quick-actions">
+              <button
+                className="p-1.5 rounded-lg border border-sepia-200 bg-white hover:bg-sepia-50 text-xs"
+                aria-label={c.pinned ? "Unpin clip" : "Pin clip"}
+                onClick={(e) => { e.stopPropagation(); togglePin(c.id); }}
+                title={c.pinned ? "Unpin" : "Pin"}
+              >
+                <Pin aria-hidden size={16} />
+              </button>
+              <button
+                className="p-1.5 rounded-lg border border-sepia-200 bg-white hover:bg-sepia-50 text-xs"
+                aria-label="Delete clip"
+                onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this clip?")) deleteClip(c.id); }}
+                title="Delete"
+              >
+                <Trash2 aria-hidden size={16} />
               </button>
             </div>
 
@@ -296,8 +335,18 @@ export function ClipManager(props: ClipManagerProps) {
   };
   const suggestFilename = (withExt = true) => `tempo-clips-${exportScope}-${exportSort}-${new Date().toISOString().slice(0,10)}-${buildExportList().length}${withExt ? '.pdf' : ''}`;
   const copyFilename = async () => {
-    try { await navigator.clipboard.writeText(suggestFilename(true)); setCopiedName(true); setTimeout(() => setCopiedName(false), 1200); }
-    catch {}
+    try {
+      await navigator.clipboard.writeText(suggestFilename(true));
+      setCopiedName(true);
+      setTimeout(() => setCopiedName(false), 1200);
+    } catch (e) {
+      console.warn("Clipboard write failed; showing fallback.", e);
+      const ok = window.confirm("Could not copy automatically. Click OK to see the filename and copy it manually.");
+      if (ok) {
+        const name = suggestFilename(true);
+        window.prompt("Copy filename:", name);
+      }
+    }
   };
 
   return (

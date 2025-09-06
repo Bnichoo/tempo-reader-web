@@ -12,7 +12,6 @@ type Props = {
   onJump: (tokenIdx: number) => void;
   onAddClip: (range: RangeT) => void;
   onAidRangeChange: (range: RangeT | null) => void;
-  onSelectionChange: (range: RangeT | null) => void;
 };
 
 function sentenceRangeAt(tokens: string[], i: number): RangeT {
@@ -52,7 +51,6 @@ export const Reader: React.FC<Props> = ({
   onJump,
   onAddClip,
   onAidRangeChange,
-  onSelectionChange,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +121,7 @@ export const Reader: React.FC<Props> = ({
     if (changed) setHeights(m);
   }, [visible, heights, blocks]);
 
-  // ---------- Selection tracking + pause ----------
+  // ---------- Selection tracking (inside-root flag + pause) ----------
   const [hasSelection, setHasSelection] = useState(false);
   useEffect(() => {
     const root = rootRef.current;
@@ -133,26 +131,19 @@ export const Reader: React.FC<Props> = ({
       const sel = document.getSelection();
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
         setHasSelection(false);
-        onSelectionChange(null);
         return;
       }
       const r = sel.getRangeAt(0);
       const inside = root.contains(r.startContainer) && root.contains(r.endContainer);
       setHasSelection(inside);
       if (inside) {
-        // send pause request
         window.dispatchEvent(new CustomEvent("tempo:pause"));
-        // also forward token range
-        const startSpan = (r.startContainer.nodeType === 3 ? (r.startContainer.parentElement) : (r.startContainer as Element)) as HTMLElement | null;
-        const endSpan   = (r.endContainer.nodeType === 3 ? (r.endContainer.parentElement) : (r.endContainer as Element)) as HTMLElement | null;
-        const a = findTok(root, startSpan), b = findTok(root, endSpan);
-        if (a != null && b != null) onSelectionChange({ start: Math.min(a,b), length: Math.abs(b - a) + 1 });
       }
     };
 
     document.addEventListener("selectionchange", onSel);
     return () => document.removeEventListener("selectionchange", onSel);
-  }, [onSelectionChange]);
+  }, []);
 
   // ---------- Manual scroll override ----------
   const overrideUntilRef = useRef<number>(0);
@@ -205,20 +196,20 @@ export const Reader: React.FC<Props> = ({
     // keep focused token near a font-aware target
     // adapt position & threshold to font size to reduce jitter at large sizes
     const fontPx = parseFloat(getComputedStyle(container).fontSize || "20");
-    let desiredRatio = 0.4; // baseline
-    if (fontPx >= 26) desiredRatio = 0.35;
-    else if (fontPx <= 18) desiredRatio = 0.45;
+    let desiredRatio = 0.42; // baseline slightly higher so we scroll a hair earlier
+    if (fontPx >= 26) desiredRatio = 0.40;
+    else if (fontPx <= 18) desiredRatio = 0.46;
     const target = Math.max(0, focusEl.offsetTop - container.clientHeight * desiredRatio);
     const current = container.scrollTop;
     const delta = target - current;
 
     const linePx = parseFloat(getComputedStyle(container).lineHeight || String(fontPx * 1.2));
     // scale threshold with font so big fonts don't trigger micro scrolls
-    const scale = fontPx >= 26 ? 1.6 : fontPx >= 22 ? 1.2 : 0.9;
-    const threshold = isFinite(linePx) ? linePx * scale : Math.max(20, fontPx);
+    const scale = fontPx >= 26 ? 1.0 : fontPx >= 22 ? 0.85 : 0.7;
+    const threshold = isFinite(linePx) ? linePx * scale : Math.max(12, fontPx * 0.8);
 
     if (Math.abs(delta) > threshold) {
-      const damping = fontPx >= 26 ? 0.35 : 0.5; // slower approach at large fonts
+      const damping = fontPx >= 26 ? 0.28 : 0.36; // smaller, more frequent smooth adjustments
       container.scrollTo({ top: current + delta * damping, behavior: "smooth" });
     }
   }, [focusStart, focusLength, visible, hasSelection]);
