@@ -20,7 +20,7 @@ export function isDebugEnabled(): boolean {
   } catch { /* ignore: localStorage unavailable */ }
   // Vite: prefer explicit env
   try {
-    const env: any = (import.meta as any)?.env;
+    const env = (import.meta as unknown as { env?: { VITE_DEBUG?: string; MODE?: string } }).env;
     if (env?.VITE_DEBUG === "1") return true;
     return !!(env?.MODE === "development");
   } catch { /* ignore: env unavailable */ }

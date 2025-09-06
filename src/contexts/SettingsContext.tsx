@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext } from "react";
 import { useSettings } from "../hooks/useSettings";
 
@@ -15,4 +16,5 @@ export function useSettingsCtx() {
   if (!v) throw new Error("useSettingsCtx must be used within SettingsProvider");
   return v;
 }
+
 

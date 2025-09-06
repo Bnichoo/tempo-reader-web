@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 
 export type ReaderState = {
@@ -52,4 +53,5 @@ export function useReader() {
   if (!v) throw new Error("useReader must be used within ReaderProvider");
   return v;
 }
+
 

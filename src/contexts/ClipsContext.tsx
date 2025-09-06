@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo } from "react";
 import { useDocument } from "./DocumentContext";
 import { useClips } from "../hooks/useClips";
@@ -55,3 +56,4 @@ export function useClipsCtx() {
   if (!v) throw new Error("useClipsCtx must be used within ClipsProvider");
   return v;
 }
+

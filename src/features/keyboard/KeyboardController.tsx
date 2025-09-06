@@ -40,14 +40,14 @@ export const KeyboardController: React.FC<Props> = ({ noteOpen, currentSelection
       if (e.code === "Space") {
         e.preventDefault();
         setPlaying(!playing);
-      } else if (e.key.toLowerCase() === "c") {
-        e.preventDefault();
-        const range = currentSelection || focusRange;
-        openNote(range);
       } else if ((e.altKey || e.metaKey) && e.key.toLowerCase() === "c") {
         e.preventDefault();
         setPlaying(false);
         toggleClips();
+      } else if (e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        const range = currentSelection || focusRange;
+        openNote(range);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -56,4 +56,3 @@ export const KeyboardController: React.FC<Props> = ({ noteOpen, currentSelection
 
   return null;
 };
-

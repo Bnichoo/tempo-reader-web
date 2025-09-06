@@ -140,8 +140,8 @@ export function ClipManager(props: ClipManagerProps) {
     return [...pinned, ...rest];
   };
   const suggestFilename = (withExt = true) => `tempo-clips-${exportScope}-${exportSort}-${new Date().toISOString().slice(0,10)}-${buildExportList().length}${withExt ? '.pdf' : ''}`;
-  const copyFilename = async () => { try { await navigator.clipboard.writeText(suggestFilename(true)); setCopiedName(true); setTimeout(() => setCopiedName(false), 1200); } catch {} };
-  const runExportPdf = async () => { const list = buildExportList(); try { logger.info("clips:export_pdf", { count: list.length, scope: exportScope, sort: exportSort, notesOnly: exportNotesOnly }); } catch {} await exportClipsPdf(list, { filename: (exportFilename || suggestFilename(false)) }); setExportBar(false); };
+  const copyFilename = async () => { try { await navigator.clipboard.writeText(suggestFilename(true)); setCopiedName(true); setTimeout(() => setCopiedName(false), 1200); } catch { /* ignore: clipboard unavailable */ } };
+  const runExportPdf = async () => { const list = buildExportList(); try { logger.info("clips:export_pdf", { count: list.length, scope: exportScope, sort: exportSort, notesOnly: exportNotesOnly }); } catch { /* ignore: telemetry optional */ } await exportClipsPdf(list, { filename: (exportFilename || suggestFilename(false)) }); setExportBar(false); };
 
   return (
     <>

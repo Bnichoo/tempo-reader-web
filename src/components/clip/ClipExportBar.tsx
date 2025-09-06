@@ -22,7 +22,11 @@ export const ClipExportBar: React.FC<Props> = ({ exportScope, setExportScope, ex
     <div className="px-4 py-2 export-bar border-b border-sepia-200 flex items-center gap-3 text-sm flex-wrap">
       <div className="flex items-center gap-2">
         <label className="text-sepia-700">Scope:</label>
-        <select className="px-2 py-1 rounded-lg border border-sepia-200 bg-white" value={exportScope} onChange={(e) => setExportScope(e.target.value as any)}>
+        <select
+          className="px-2 py-1 rounded-lg border border-sepia-200 bg-white"
+          value={exportScope}
+          onChange={(e) => setExportScope(e.target.value as "all" | "pinned" | "filtered")}
+        >
           <option value="all">All clips</option>
           <option value="pinned">Pinned only</option>
           <option value="filtered">Current filter</option>
@@ -30,7 +34,11 @@ export const ClipExportBar: React.FC<Props> = ({ exportScope, setExportScope, ex
       </div>
       <div className="flex items-center gap-2">
         <label className="text-sepia-700">Sort:</label>
-        <select className="px-2 py-1 rounded-lg border border-sepia-200 bg-white" value={exportSort} onChange={(e) => setExportSort(e.target.value as any)}>
+        <select
+          className="px-2 py-1 rounded-lg border border-sepia-200 bg-white"
+          value={exportSort}
+          onChange={(e) => setExportSort(e.target.value as "pinned-date-desc" | "date-desc" | "date-asc" | "position")}
+        >
           <option value="pinned-date-desc">Pinned first, date desc</option>
           <option value="date-desc">Date desc</option>
           <option value="date-asc">Date asc</option>
@@ -54,4 +62,3 @@ export const ClipExportBar: React.FC<Props> = ({ exportScope, setExportScope, ex
 };
 
 export default ClipExportBar;
-

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState } from "react";
 import type { RangeT } from "../types";
 
@@ -28,3 +29,4 @@ export function useSelectionCtx() {
   if (!v) throw new Error("useSelectionCtx must be used within SelectionProvider");
   return v;
 }
+

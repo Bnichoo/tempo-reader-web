@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useMemo, useState, useCallback } from "react";
 import { useTokenizer } from "../lib/useTokenizer";
 import { hashDocId } from "../lib/doc";
@@ -55,3 +56,4 @@ export function useDocument() {
   if (!v) throw new Error("useDocument must be used within DocumentProvider");
   return v;
 }
+
