@@ -1,20 +1,19 @@
 # Changelog
 
-All notable changes to this project are documented here. Dates use YYYY‑MM‑DD.
+## [Unreleased]
 
-## [Phase 1 – Quick Wins] – 2025-08-28
-Tag: `phase-1`
+## [0.1.0] - 2025-05-09
+### Added
+- ProductivityBar: session hourglass with Start/Pause/Stop, time and words.
+- Compact pill style for ProductivityBar for better desktop/mobile fit.
+- CitationService scaffold and FileProcessingService (HTML ? text).
+- ClipsContext actions for tags/categories (API only, UI later).
 
-- Constants: Added `LIMITS` (`src/lib/constants.ts`) for shared limits and thresholds.
-- Tokenizer: Worker gating now uses `LIMITS.TOKENIZE_WORKER_THRESHOLD` (`src/lib/useTokenizer.ts`).
-- Storage: Centralized persistence in `src/lib/storage.ts`; debounced writes; flush pending writes on `pagehide`/`visibilitychange`.
-- Clips: Introduced `clipRepository` (`src/lib/clipUtils.ts`) with `migrate`, `prune`, and `serialize`. `migrate` sanitizes `noteHtml`.
-- Reader performance: Replaced `Array.from` token render with a simple loop; memoized focus/dim style objects (`src/components/Reader.tsx`).
-- Edge-scroll: Extracted `useEdgeScroll` hook for dock chip auto-scroll on edge hover (`src/hooks/useEdgeScroll.ts`), integrated in `ClipManager`.
-- Cleanup: Removed startup `console.log` from `src/main.tsx`. Fixed JSX comment in `src/App.tsx`.
-- App wiring: `App.tsx` now uses shared constants, storage helpers, and clip utils; removed duplicate migration/prune/persistence logic.
+### Changed
+- Clips overlay quick actions use lucide icons (Pin, Trash) instead of emoji/text.
+- Legacy emoji quick-action block hidden via CSS; new icon block inserted.
 
-Notes:
-- No breaking changes; existing localStorage data remains compatible.
-- Build verified with Vite + TypeScript.
+### Notes
+- Branch: productivity-features
+- Import supports txt/html; PDF/Docs import and APA/MLA UI deferred.
 

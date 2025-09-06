@@ -166,13 +166,22 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
     const ed = editorRef.current; if (!ed) return; ed.focus(); restoreSelection();
     const safe = sanitizeHTML(html);
     const ok = document.queryCommandSupported && document.queryCommandSupported("insertHTML");
-    if (ok) { try { document.execCommand("insertHTML", false, safe); } catch {}
-    } else {
+    const fallbackInsert = () => {
       const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0); range.deleteContents();
       const frag = range.createContextualFragment(safe); range.insertNode(frag);
       const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false);
       sel.removeAllRanges(); sel.addRange(r);
+    };
+    if (ok) {
+      try {
+        document.execCommand("insertHTML", false, safe);
+      } catch (e) {
+        console.warn("execCommand insertHTML failed; using fallback", e);
+        fallbackInsert();
+      }
+    } else {
+      fallbackInsert();
     }
     if (editorRef.current) fixupAllAnchors(editorRef.current); updateToolbarStates(); pushHistorySnapshot(true);
   }
@@ -199,7 +208,8 @@ export function NoteEditorModal({ open, draftKey, initialHtml, onSave, onCancel 
         }
         insertSanitizedHtml(html);
       }
-    } catch {
+    } catch (e) {
+      console.warn("Clipboard read blocked; falling back to prompt.", e);
       const txt = window.prompt("Paste here, then press OK:", "");
       if (txt != null) insertSanitizedHtml(textToHtmlParagraphs(txt));
     }

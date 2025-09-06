@@ -26,7 +26,9 @@ export const clipRepository = {
         ? sanitizeHTML(obj.noteHtml as string)
         : undefined;
       const docId = typeof obj.docId === "string" && obj.docId ? (obj.docId as string) : (localStorage.getItem("tr:lastDocId") || "legacy");
-      return { id, start, length, snippet, noteHtml, pinned, createdUtc, docId } as Clip;
+      const tags = Array.isArray((obj as any).tags) ? ((obj as any).tags as unknown[]).filter((t) => typeof t === 'string') as string[] : undefined;
+      const category = typeof (obj as any).category === 'string' ? ((obj as any).category as string) : undefined;
+      return { id, start, length, snippet, noteHtml, pinned, createdUtc, docId, tags, category } as Clip;
     });
   },
 
