@@ -1,9 +1,10 @@
 import type { Clip } from "../types";
 
 const DB_NAME = "tempo-reader";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_CLIPS = "clips";
 const STORE_META = "meta";
+const STORE_DOCS = "docs";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -33,6 +34,9 @@ function openDB(): Promise<IDBDatabase> {
       } catch { /* ignore: index may already exist */ }
       if (!db.objectStoreNames.contains(STORE_META)) {
         db.createObjectStore(STORE_META, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(STORE_DOCS)) {
+        db.createObjectStore(STORE_DOCS, { keyPath: "id" });
       }
     };
     req.onerror = () => reject(req.error);
@@ -126,7 +130,15 @@ export async function clipsBulkUpdateDocId(fromDocId: string, toDocId: string): 
 
 export async function recordRecentDoc(docId: string, name: string): Promise<void> {
   try {
-    await metaSet('doc:'+docId, { name, ts: Date.now() });
+    // Merge with existing doc meta rather than overwrite
+    const existing = await metaGet<any>('doc:'+docId);
+    const merged = {
+      ...(existing && typeof existing === 'object' ? existing : {}),
+      // keep existing title if present; otherwise use provided name
+      title: (existing && (existing as any).title) ? (existing as any).title : name,
+      updatedAt: Date.now(),
+    };
+    await metaSet('doc:'+docId, merged);
     const list = (await metaGet<string[]>("recentDocs")) || [];
     const next = [docId, ...list.filter(id => id !== docId)].slice(0, 20);
     await metaSet("recentDocs", next);
@@ -213,5 +225,41 @@ export async function requestPersistentStorage(): Promise<boolean> {
     return false;
   } catch {
     return false;
+  }
+}
+
+// --- Documents (full text) ---
+
+export async function docPut(id: string, text: string): Promise<void> {
+  await tx<void>(STORE_DOCS, "readwrite", (s) => {
+    return new Promise((resolve, reject) => {
+      const req = s.put({ id, text });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  });
+}
+
+export async function docGet(id: string): Promise<{ id: string; text: string } | undefined> {
+  return await tx<{ id: string; text: string } | undefined>(STORE_DOCS, "readonly", (s) => {
+    return new Promise((resolve, reject) => {
+      const req = s.get(id);
+      req.onsuccess = () => resolve(req.result as { id: string; text: string } | undefined);
+      req.onerror = () => reject(req.error);
+    });
+  });
+}
+
+export type RecentDoc = { id: string; name: string; updatedAt?: number };
+
+export async function listRecentDocs(): Promise<RecentDoc[]> {
+  try {
+    const ids = (await metaGet<string[]>("recentDocs")) || [];
+    if (!ids.length) return [];
+    const metas = await Promise.all(ids.map((id) => metaGet<{ title?: string; updatedAt?: number; name?: string; ts?: number }>(`doc:${id}`)));
+    const out: RecentDoc[] = ids.map((id, i) => ({ id, name: (metas[i]?.title || metas[i]?.name || id), updatedAt: metas[i]?.updatedAt || metas[i]?.ts }));
+    return out;
+  } catch {
+    return [];
   }
 }

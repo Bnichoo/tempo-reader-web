@@ -6,13 +6,15 @@ import Square from "lucide-react/dist/esm/icons/square.js";
 import { useReader } from "../contexts/ReaderContext";
 import { useSettingsCtx } from "../contexts/SettingsContext";
 import { useWordNavigation } from "../hooks/useWordNavigation";
+import { metaGet, metaSet } from "../lib/idb";
 
 type Props = {
   tokens: string[];
   drawerOffsetLeft: number;
+  docId: string;
 };
 
-export const ProductivityBar: React.FC<Props> = ({ tokens, drawerOffsetLeft }) => {
+export const ProductivityBar: React.FC<Props> = ({ tokens, drawerOffsetLeft, docId }) => {
   const { playing, setPlaying, wIndex } = useReader();
   useSettingsCtx(); // ensure theme/vars available
   useWordNavigation(tokens); // ensure consistent indexing hook initialized
@@ -58,6 +60,30 @@ export const ProductivityBar: React.FC<Props> = ({ tokens, drawerOffsetLeft }) =
   }, [elapsedMs]);
 
   const reset = () => { setWordsRead(0); setElapsedMs(0); startRef.current = null; lastIndexRef.current = wIndex; };
+
+  // Persist per-doc session metrics
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const saved = await metaGet<{ wordsRead?: number; elapsedMs?: number }>(`session:${docId}`);
+        if (active && saved) {
+          setWordsRead(Math.max(0, saved.wordsRead || 0));
+          setElapsedMs(Math.max(0, saved.elapsedMs || 0));
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { active = false; };
+  }, [docId]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try { void metaSet(`session:${docId}`, { wordsRead, elapsedMs }); } catch { /* ignore */ }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [wordsRead, elapsedMs, docId]);
+
+  // Do not reset on doc change; metrics persist per document
 
   return (
     <div className="productivity-bar" style={{ left: `${drawerOffsetLeft}px` }}>

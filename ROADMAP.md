@@ -59,3 +59,38 @@
 - Documents
   - Recent documents list; optional friendly names
 
+---
+
+## Planned PRs (Import + Tabs)
+
+- PR1: Import polish
+  - Persist import metadata (title/type/pages/size) per doc
+  - Show document title in header and use for Recent Docs
+  - Replace confirmation when importing over existing text
+  - Drag-and-drop import over reader viewport
+  - Update changelog to reflect PDF/DOCX baseline support
+- PR2: Document persistence
+  - Add `docs` store (IDB) for full text; wire import to save doc
+  - Recent documents menu with friendly titles
+- PR3: Per-document reader state
+  - Namespace resume position and playback state by `docId`
+- PR4: Tabs foundation (state + UI)
+  - Manage open tabs and active tab; persist via IDB meta
+- PR5: Open-on-import flow
+  - Import opens as a new tab; replace remains as secondary option
+- PR6: Performance & robustness
+  - Tokenization memory guard, worker coverage, large docs UX
+- PR7: Tests & docs
+  - Unit/integration tests; accessibility for tabs; docs updates
+
+---
+
+## Completed PRs Summary
+
+- PR1: Import polish (metadata persistence, header title, replace confirm, DnD, changelog).
+- PR2: Document persistence (IDB `docs`, Recent menu).
+- PR3: Per-document reader state (resume by `docId`, session reset).
+- PR4: Tabs foundation (state/UI/persist) + title caching fix.
+- PR5: Import flow (New Tab default, Replace option, DnD → New Tab).
+- PR6: Performance & robustness (large file notice, request persistent storage).
+- PR7: Tests & docs (tab a11y roles/keys, doc/storage unit tests, multi‑doc guide).

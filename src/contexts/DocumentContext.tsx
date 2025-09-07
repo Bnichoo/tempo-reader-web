@@ -24,7 +24,9 @@ type DocContextValue = {
 const Ctx = createContext<DocContextValue | null>(null);
 
 export function DocumentProvider({ children }: { children: React.ReactNode }) {
-  const [text, setText] = useState<string>(SAMPLE_TEXT);
+  // Start with empty text so the app shows the default import screen on first load.
+  // Users can import a document or recent doc to begin.
+  const [text, setText] = useState<string>("");
   const tokens = useTokenizer(text);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
 

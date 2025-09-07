@@ -71,6 +71,30 @@ export const Reader: React.FC<Props> = ({
     }
   }, [focusStart, focusLength, blocks.length]);
 
+  // Ensure target block is in view for far jumps (prevents jitter on long docs)
+  useEffect(() => {
+    if (!playing) return; // only auto-jump when following
+    if (performance.now() < overrideUntilRef.current) return; // user scrolling
+    if (!blocks.length) return;
+    const bi = Math.max(0, Math.min(Math.floor(focusStart / BLOCK_SIZE), blocks.length - 1));
+    const vis = rowVirtualizer.getVirtualItems();
+    if (!vis.length) return;
+    const first = vis[0].index, last = vis[vis.length - 1].index;
+    if (bi < first - 1 || bi > last + 1) {
+      try { rowVirtualizer.scrollToIndex(bi, { align: 'start' }); } catch { /* ignore */ }
+    }
+  }, [playing, focusStart, blocks.length]);
+
+  // Guard against unintended reset-to-top when paused or after far navigation
+  useEffect(() => {
+    const root = rootRef.current; if (!root) return;
+    const container = (root.closest(".reader-scroll") as HTMLElement) || (root.parentElement as HTMLElement);
+    if (!container) return;
+    if (container.scrollTop <= 4 && lastStableScrollRef.current > 80 && performance.now() >= overrideUntilRef.current) {
+      container.scrollTo({ top: lastStableScrollRef.current, behavior: 'auto' });
+    }
+  }, [focusStart]);
+
   // ---------- Selection tracking (inside-root flag + pause) ----------
   const [hasSelection, setHasSelection] = useState(false);
   useEffect(() => {
@@ -98,6 +122,7 @@ export const Reader: React.FC<Props> = ({
   // ---------- Manual scroll override ----------
   const overrideUntilRef = useRef<number>(0);
   const OVERRIDE_MS = 1800;
+  const lastStableScrollRef = useRef<number>(0);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -111,7 +136,7 @@ export const Reader: React.FC<Props> = ({
 
     // Wheel/scroll/touch all mark override
     const onWheel = () => markOverride();
-    const onScroll = () => markOverride();
+    const onScroll = () => { lastStableScrollRef.current = container.scrollTop; markOverride(); };
     const onTouchStart = () => markOverride();
     const onPointerDown = () => markOverride(); // scrollbar drag, etc.
 
@@ -128,7 +153,15 @@ export const Reader: React.FC<Props> = ({
     };
   }, []);
 
-  // ---------- Gentle follow (no periodic hop) ----------
+  // ---------- Gentle follow + catch-up (no periodic hop) ----------
+  // NOTE: This logic is the primary suspect for rare scroll resets when
+  // word indices jump across many virtual blocks. Potential culprits:
+  // 1) measureElement jitter: virtualization remeasures blocks near focus,
+  //    briefly changing total height; scrollTop can clamp to 0.
+  // 2) interleaving smooth scroll and scrollToIndex: a smooth scroll enqueues
+  //    while virtualizer immediately scrolls to index -> snap.
+  // 3) useEffect timing: follow fires while a previous follow or user scroll
+  //    is still in flight; the override window may end too early.
   useEffect(() => {
     if (hasSelection) return; // suspend while selecting/selected
     if (performance.now() < overrideUntilRef.current) return; // user scrolling
@@ -143,24 +176,49 @@ export const Reader: React.FC<Props> = ({
     const focusEl = root.querySelector(`.tok[data-ti="${focusStart}"]`) as HTMLElement | null;
     if (!focusEl) return;
 
-    // keep focused token near a font-aware target
-    // adapt position & threshold to font size to reduce jitter at large sizes
     const fontPx = parseFloat(getComputedStyle(container).fontSize || "20");
-    let desiredRatio = 0.42; // baseline slightly higher so we scroll a hair earlier
+    // When near the bottom, push focus toward the top before it escapes.
+    // Else keep a slightly above-center anchor to reduce jitter.
+    let desiredRatio = 0.42; // default anchor ~42% from top
     if (fontPx >= 26) desiredRatio = 0.40;
     else if (fontPx <= 18) desiredRatio = 0.46;
-    const target = Math.max(0, focusEl.offsetTop - container.clientHeight * desiredRatio);
-    const current = container.scrollTop;
-    const delta = target - current;
 
+    const current = container.scrollTop;
+    const top = focusEl.offsetTop;
+    const edge = container.clientHeight * 0.18; // margin from edges
+    const viewportTop = current + edge;
+    const viewportBottom = current + container.clientHeight - edge;
+    const focusBottom = top + focusEl.offsetHeight;
+
+    // If the focus token is way outside the viewport, do a hard catch‑up (no smooth)
+    if (top < viewportTop - container.clientHeight * 0.5 || top > viewportBottom + container.clientHeight * 0.5) {
+      const hardTarget = Math.max(0, top - container.clientHeight * desiredRatio);
+      container.scrollTo({ top: hardTarget, behavior: "auto" });
+      return;
+    }
+
+    // If focus is approaching bottom edge, proactively align near the top.
+    // This reduces perceived lag at high WPM/large word windows.
+    if (focusBottom > viewportBottom) {
+      const topAlignRatio = 0.06; // ~top
+      const targetTop = Math.max(0, top - container.clientHeight * topAlignRatio);
+      container.scrollTo({ top: targetTop, behavior: 'auto' });
+      lastStableScrollRef.current = targetTop;
+      return;
+    }
+
+    // Otherwise nudge smoothly toward the desired target
+    const target = Math.max(0, top - container.clientHeight * desiredRatio);
+    const delta = target - current;
     const linePx = parseFloat(getComputedStyle(container).lineHeight || String(fontPx * 1.2));
-    // scale threshold with font so big fonts don't trigger micro scrolls
     const scale = fontPx >= 26 ? 1.0 : fontPx >= 22 ? 0.85 : 0.7;
     const threshold = isFinite(linePx) ? linePx * scale : Math.max(12, fontPx * 0.8);
-
     if (Math.abs(delta) > threshold) {
-      const damping = fontPx >= 26 ? 0.28 : 0.36; // smaller, more frequent smooth adjustments
-      container.scrollTo({ top: current + delta * damping, behavior: "smooth" });
+      const damping = fontPx >= 26 ? 0.28 : 0.36;
+      const nextTop = current + delta * damping;
+      container.scrollTo({ top: nextTop, behavior: "smooth" });
+      // Record last known non-top scroll to guard against spurious clamps.
+      if (nextTop > 4) lastStableScrollRef.current = nextTop;
     }
   }, [focusStart, focusLength, hasSelection]);
 

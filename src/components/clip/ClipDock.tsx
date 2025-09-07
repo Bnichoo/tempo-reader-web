@@ -1,6 +1,5 @@
-import React, { useRef } from "react";
+import React from "react";
 import type { Clip } from "../../types";
-import { useEdgeScroll } from "../../hooks/useEdgeScroll";
 import PinIcon from "lucide-react/dist/esm/icons/pin.js";
 
 type Props = {
@@ -24,14 +23,15 @@ export const ClipDock: React.FC<Props> = ({ topChips, drawerOffset, onOpen, onCh
 };
 
 const DockChips: React.FC<{ topChips: Clip[]; onChipClick: (c: Clip) => void }> = ({ topChips, onChipClick }) => {
-  const dockStripRef = useRef<HTMLDivElement>(null);
-  const edge = useEdgeScroll(dockStripRef);
   if (topChips.length === 0) {
     return <div className="text-xs text-sepia-700">No clips yet. Select text → right click → "Add clip".</div>;
   }
+  const avgLen = topChips.reduce((a, c) => a + c.snippet.length, 0) / Math.max(1, topChips.length);
+  const max = avgLen > 64 ? 3 : 5;
+  const list = topChips.slice(0, max);
   return (
-    <div ref={dockStripRef} className="dock-chips-container relative" onMouseMove={edge.onMouseMove} onMouseLeave={edge.onMouseLeave}>
-      {topChips.map((c) => (
+    <div className="flex items-center gap-2 overflow-hidden">
+      {list.map((c) => (
         <button key={c.id} className="px-2.5 py-1.5 text-xs rounded-xl border border-sepia-300 bg-white hover:bg-sepia-50 flex-shrink-0" onClick={() => onChipClick(c)} title={c.snippet}>
           {c.pinned && (<PinIcon aria-hidden size={12} className="inline-block mr-1" />)}
           {c.snippet.slice(0, 48)}{c.snippet.length > 48 ? "…" : ""}

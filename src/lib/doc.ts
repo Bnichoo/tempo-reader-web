@@ -14,3 +14,4 @@ export function docDisplayName(text: string): string {
   const trimmed = firstLine.trim();
   return trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed;
 }
+

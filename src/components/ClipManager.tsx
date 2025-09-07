@@ -203,10 +203,10 @@ export function ClipManager(props: ClipManagerProps) {
                   {(query ? filteredClips : clips).length === 0 ? (
                     <div className="text-sm text-sepia-700">Select text in the reader, right-click, and choose <em>Add clip…</em>.</div>
                   ) : (
-                    ((query ? filteredClips : clips).length > 50)
+                    ((query ? filteredClips : clips).length > 12)
                       ? (
                         <VirtualizedClipList
-                          list={query ? filteredClips : clips}
+                          list={(query ? filteredClips : clips).slice(0, 40)}
                           itemH={92}
                           overscan={6}
                           onGoToToken={(ti) => { onGoToToken(ti); setExpanded(false); }}
@@ -219,7 +219,7 @@ export function ClipManager(props: ClipManagerProps) {
                         />
                       ) : (
                         <ul className="space-y-3">
-                          {(query ? filteredClips : clips).map((c) => (
+                          {(query ? filteredClips : clips).slice(0, 12).map((c) => (
                             <li
                               key={c.id}
                               className="clip-card-item clip-card p-3 rounded-xl border border-sepia-200 hover:bg-sepia-50 cursor-pointer relative"

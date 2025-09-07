@@ -2,6 +2,12 @@ import { useEffect, useRef } from "react";
 
 export function useResumePosition(totalWords: number, wIndex: number, setWIndex: (n: number) => void, key = "tr:wIndex:v1") {
   const resumedRef = useRef(false);
+  const keyRef = useRef(key);
+  // if key changes (e.g., new docId), allow resume again
+  if (keyRef.current !== key) {
+    keyRef.current = key;
+    resumedRef.current = false;
+  }
   // restore once when word count known
   useEffect(() => {
     if (resumedRef.current) return;

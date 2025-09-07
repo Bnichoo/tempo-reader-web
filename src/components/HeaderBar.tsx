@@ -14,12 +14,13 @@ type Props = {
   disablePlay: boolean;
   search: string;
   setSearch: (s: string) => void;
+  onOpenRecent?: () => void;
 };
 
-export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onOpenImport, playing, setPlaying, disablePlay, search, setSearch }) => {
+export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onOpenImport, playing, setPlaying, disablePlay, search, setSearch, onOpenRecent }) => {
   return (
-    <header className="sticky top-0 z-20 backdrop-blur bg-sepia-50/80 border-b border-sepia-200">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+    <header className="sticky top-0 z-20 backdrop-blur bg-sepia-50/80 border-b border-sepia-200 h-16">
+      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center gap-3">
         <BookOpenTextIcon aria-hidden size={18} />
         <h1 className="text-xl font-semibold mr-3">Tempo Reader (Web)</h1>
 
@@ -27,6 +28,11 @@ export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onO
           <UploadIcon aria-hidden size={16} />
           <span className="text-sm">Import</span>
         </button>
+        {onOpenRecent && (
+          <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-sepia-200 bg-white/70 hover:bg-white transition" aria-label="Open recent" onClick={onOpenRecent}>
+            <span className="text-sm">Recent</span>
+          </button>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {offline && (
