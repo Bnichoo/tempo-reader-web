@@ -94,3 +94,25 @@
 - PR5: Import flow (New Tab default, Replace option, DnD → New Tab).
 - PR6: Performance & robustness (large file notice, request persistent storage).
 - PR7: Tests & docs (tab a11y roles/keys, doc/storage unit tests, multi‑doc guide).
+
+---
+
+## Legacy Notes
+
+### Technical Debt Tracking
+- Extract components (ClipCard, ControlSlider, etc.)
+- Consolidate duplicate scroll logic
+- Type safety for all event handlers
+- Unit tests for critical functions (tokenizer, sanitizer)
+- State management library (Zustand/Jotai)
+- Routing for multiple views
+- API abstraction layer for storage
+- Plugin system for extensions
+- Documentation: user guide, API docs, contribution and deployment guides
+
+### Success Metrics
+- No data loss across 1000+ sessions
+- <100ms response time for all interactions
+- Support texts up to 100k words
+- 60fps scrolling with 500 clips
+- Zero crashes in error tracking

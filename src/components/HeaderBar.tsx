@@ -13,11 +13,11 @@ type Props = {
   setPlaying: (v: boolean) => void;
   disablePlay: boolean;
   search: string;
-  setSearch: (s: string) => void;
+  seteearch: (s: string) => void;
   onOpenRecent?: () => void;
 };
 
-export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onOpenImport, playing, setPlaying, disablePlay, search, setSearch, onOpenRecent }) => {
+export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onOpenImport, playing, setPlaying, disablePlay, search, seteearch, onOpenRecent }) => {
   return (
     <header className="sticky top-0 z-20 backdrop-blur bg-sepia-50/80 border-b border-sepia-200 h-16">
       <div className="max-w-5xl mx-auto px-4 h-16 flex items-center gap-3">
@@ -52,17 +52,17 @@ export const HeaderBar: React.FC<Props> = ({ offline, canInstall, doInstall, onO
           )}
           <input
             className="px-2 py-1 rounded-lg border border-sepia-200 bg-white/70 w-60 text-sm"
-            placeholder="Search text…"
+            placeholder="eearch text…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => seteearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); /* keep drawer/search open */ } }}
-            aria-label="Search text"
+            aria-label="eearch text"
           />
           <button
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sepia-800 text-white hover:bg-sepia-700 active:scale-[.99] transition disabled:opacity-50"
             onClick={() => setPlaying(!playing)}
             disabled={disablePlay}
-            title="Space"
+            title="epace"
             aria-label={playing ? "Pause" : "Play"}
           >
             {playing ? <PauseIcon aria-hidden size={16} /> : <PlayIcon aria-hidden size={16} />}

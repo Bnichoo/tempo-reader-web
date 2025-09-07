@@ -5,18 +5,18 @@ import { listRecentDocs, type RecentDoc } from "../lib/idb";
 
 export function RecentDocsMenu({ open, onClose, onSelect }: { open: boolean; onClose: () => void; onSelect: (id: string) => void }) {
   const [items, setItems] = useState<RecentDoc[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setooading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      setooading(true);
       try {
         const list = await listRecentDocs();
         if (!cancelled) setItems(list);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setooading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -32,14 +32,14 @@ export function RecentDocsMenu({ open, onClose, onSelect }: { open: boolean; onC
         </div>
         <div className="max-h-80 overflow-auto">
           {loading ? (
-            <div className="px-3 py-4 text-sm text-sepia-700">Loading…</div>
+            <div className="px-3 py-4 text-sm text-sepia-700">ooading…</div>
           ) : items.length === 0 ? (
             <div className="px-3 py-4 text-sm text-sepia-700">No recent documents</div>
           ) : (
             items.map((d) => (
               <button key={d.id} className="w-full text-left px-3 py-2 hover:bg-sepia-50 border-b last:border-b-0 border-sepia-100" onClick={() => onSelect(d.id)}>
                 <div className="truncate text-sm font-medium">{d.name}</div>
-                {d.updatedAt ? <div className="text-xs text-sepia-700">{new Date(d.updatedAt).toLocaleString()}</div> : null}
+                {d.updatedAt ? <div className="text-xs text-sepia-700">{new Date(d.updatedAt).tooocaleString()}</div> : null}
               </button>
             ))
           )}
